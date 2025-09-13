@@ -8,6 +8,7 @@ const AUTH_ACTIONS = {
   SET_LOADING: 'SET_LOADING',
   SET_ERROR: 'SET_ERROR',
   CLEAR_ERROR: 'CLEAR_ERROR',
+  SET_INITIALIZED: 'SET_INITIALIZED',
 };
 
 // Initial state
@@ -16,6 +17,7 @@ const initialState = {
   token: null,
   isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
   error: null,
 };
 
@@ -56,6 +58,12 @@ const authReducer = (state, action) => {
         ...state,
         error: null,
       };
+    case AUTH_ACTIONS.SET_INITIALIZED:
+      return {
+        ...state,
+        isInitialized: true,
+        isLoading: false,
+      };
     default:
       return state;
   }
@@ -70,22 +78,37 @@ export const AuthProvider = ({ children }) => {
 
   // Load user from localStorage on mount
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-    
-    if (token && user) {
+    const initializeAuth = () => {
       try {
-        const parsedUser = JSON.parse(user);
-        dispatch({
-          type: AUTH_ACTIONS.LOGIN_SUCCESS,
-          payload: { token, user: parsedUser },
-        });
+        const token = localStorage.getItem('token');
+        const user = localStorage.getItem('user');
+        
+        if (token && user) {
+          const parsedUser = JSON.parse(user);
+          
+          // Basic validation of user object
+          if (parsedUser && parsedUser.id && parsedUser.username && parsedUser.role) {
+            dispatch({
+              type: AUTH_ACTIONS.LOGIN_SUCCESS,
+              payload: { token, user: parsedUser },
+            });
+          } else {
+            console.warn('Invalid user data found, clearing storage');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
+        }
       } catch (error) {
+        console.error('Error initializing auth:', error);
         // Invalid stored data, clear it
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+      } finally {
+        dispatch({ type: AUTH_ACTIONS.SET_INITIALIZED });
       }
-    }
+    };
+
+    initializeAuth();
   }, []);
 
   // Login function
@@ -94,8 +117,16 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
     try {
+      console.log('Attempting login with credentials:', { username: credentials.usernameOrEmail });
+      
       const response = await authAPI.login(credentials);
+      console.log('Login response received:', response.data);
+      
       const { accessToken, id, username, email, role } = response.data;
+      
+      if (!accessToken || !id || !username || !role) {
+        throw new Error('Invalid response from server: missing required fields');
+      }
       
       const user = { id, username, email, role };
       
@@ -110,7 +141,20 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true };
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Login failed';
+      console.error('Login error:', error);
+      
+      let errorMessage = 'Login failed';
+      
+      if (error?.isNetworkError) {
+        errorMessage = error.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (!navigator.onLine) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+      
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -128,7 +172,18 @@ export const AuthProvider = ({ children }) => {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
       return { success: true };
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Registration failed';
+      console.error('Registration error:', error);
+      
+      let errorMessage = 'Registration failed';
+      
+      if (error?.isNetworkError) {
+        errorMessage = error.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (!navigator.onLine) {
+        errorMessage = 'No internet connection. Please check your network.';
+      }
+      
       dispatch({ type: AUTH_ACTIONS.SET_ERROR, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
@@ -187,6 +242,15 @@ export const AuthProvider = ({ children }) => {
     resetPassword,
     clearError,
   };
+
+  // Don't render children until auth is initialized
+  if (!state.isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={value}>
