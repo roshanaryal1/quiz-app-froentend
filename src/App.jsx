@@ -9,13 +9,15 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
-// Admin Pages (we'll create these next)
+// Admin Pages
 import AdminTournaments from './pages/admin/AdminTournaments';
 import CreateTournament from './pages/admin/CreateTournament';
 import EditTournament from './pages/admin/EditTournament';
 
-// Player Pages (we'll create these next)
+// Player Pages
 import PlayerTournaments from './pages/player/PlayerTournaments';
 import TournamentPlay from './pages/player/TournamentPlay';
 import PlayerHistory from './pages/player/PlayerHistory';
@@ -37,6 +39,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             
             {/* Protected routes - Any authenticated user */}
