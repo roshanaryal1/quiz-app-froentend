@@ -9,6 +9,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 second timeout
 });
 
 // Request interceptor to add auth token
@@ -21,6 +22,7 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    console.error('Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -31,19 +33,37 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
+    console.error('API Response Error:', error);
+    
+    // Handle network errors
+    if (!error.response) {
+      console.error('Network error or API is down:', error.message);
+      return Promise.reject({
+        message: 'Unable to connect to server. Please check your internet connection.',
+        isNetworkError: true
+      });
+    }
+
     if (error.response?.status === 401) {
       // Unauthorized - clear token and redirect to login
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // Only redirect if not already on login page
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
-    return Promise.reject(error);
+    
+    return Promise.reject(error.response?.data || error);
   }
 );
 
 // Auth API calls
 export const authAPI = {
-  login: (credentials) => api.post('/auth/signin', credentials),
+  login: (credentials) => {
+    console.log('Making login request to:', `${API_BASE_URL}/auth/signin`);
+    return api.post('/auth/signin', credentials);
+  },
   registerAdmin: (userData) => api.post('/auth/signup/admin', userData),
   registerPlayer: (userData) => api.post('/auth/signup/player', userData),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
