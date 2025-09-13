@@ -157,7 +157,7 @@ const AdminTournaments = () => {
                 Created by: <span className="font-medium">{tournament.creator?.firstName} {tournament.creator?.lastName}</span>
               </span>
               <button
-                onClick={() => navigate(`/admin/tournament-details/${tournament.id}`)}
+                onClick={() => {/* Navigate to tournament details */}}
                 className="text-primary-600 hover:text-primary-800 inline-flex items-center space-x-1"
               >
                 <Eye size={16} />
@@ -242,4 +242,139 @@ const AdminTournaments = () => {
           
           <div className="card">
             <div className="flex items-center">
-              <div className="bg-yellow
+              <div className="bg-yellow-100 p-3 rounded-full">
+                <Calendar className="text-yellow-600" size={24} />
+              </div>
+              <div className="ml-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {tournaments.filter(t => getTournamentStatus(t).label === 'Upcoming').length}
+                </p>
+                <p className="text-gray-600">Upcoming</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="card">
+            <div className="flex items-center">
+              <div className="bg-purple-100 p-3 rounded-full">
+                <Users className="text-purple-600" size={24} />
+              </div>
+              <div className="ml-4">
+                <p className="text-2xl font-bold text-gray-900">
+                  {tournaments.reduce((sum, t) => sum + (t.attempts?.length || 0), 0)}
+                </p>
+                <p className="text-gray-600">Total Participants</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tournaments Grid */}
+        {tournaments.length === 0 ? (
+          <div className="text-center py-12">
+            <Trophy className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No tournaments created yet</h3>
+            <p className="text-gray-600 mb-6">
+              Create your first tournament to get started with the quiz platform
+            </p>
+            <Link
+              to="/admin/create-tournament"
+              className="btn-primary"
+            >
+              Create Your First Tournament
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tournaments.map(tournament => (
+              <TournamentCard key={tournament.id} tournament={tournament} />
+            ))}
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          isOpen={deleteModal.isOpen}
+          onClose={() => setDeleteModal({ isOpen: false, tournament: null })}
+          title="Delete Tournament"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center space-x-3 p-4 bg-red-50 rounded-lg">
+              <AlertTriangle className="text-red-600" size={24} />
+              <div>
+                <h4 className="font-medium text-red-800">Are you sure?</h4>
+                <p className="text-sm text-red-700">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            {deleteModal.tournament && (
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">Tournament Details:</h4>
+                <div className="space-y-1 text-sm text-gray-600">
+                  <p><span className="font-medium">Name:</span> {deleteModal.tournament.name}</p>
+                  <p><span className="font-medium">Category:</span> {deleteModal.tournament.category}</p>
+                  <p><span className="font-medium">Participants:</span> {deleteModal.tournament.attempts?.length || 0}</p>
+                  <p><span className="font-medium">Status:</span> {getTournamentStatus(deleteModal.tournament).label}</p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                onClick={() => setDeleteModal({ isOpen: false, tournament: null })}
+                className="btn-secondary"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteTournament}
+                disabled={isDeleting}
+                className="btn-danger inline-flex items-center space-x-2"
+              >
+                {isDeleting ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <>
+                    <Trash2 size={16} />
+                    <span>Delete Tournament</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Quick Actions */}
+        {tournaments.length > 0 && (
+          <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h3 className="font-medium text-blue-900 mb-4">Quick Actions & Tips</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
+              <div>
+                <h4 className="font-medium mb-2">Management Tips</h4>
+                <ul className="space-y-1">
+                  <li>• Monitor ongoing tournaments regularly</li>
+                  <li>• Check participant engagement and scores</li>
+                  <li>• Update tournament details as needed</li>
+                  <li>• Create tournaments across different categories</li>
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">Best Practices</h4>
+                <ul className="space-y-1">
+                  <li>• Set appropriate difficulty levels for your audience</li>
+                  <li>• Schedule tournaments at peak engagement times</li>
+                  <li>• Review and analyze tournament results</li>
+                  <li>• Gather feedback from participants</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminTournaments;
