@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Trophy, Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Trophy, Mail, Lock, Eye, EyeOff, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const Login = () => {
@@ -10,13 +10,35 @@ const Login = () => {
     password: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
-  const { login, isLoading, error, clearError } = useAuth();
+  const { login, isLoading, error, clearError, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = location.state?.from?.pathname || '/';
   const message = location.state?.message;
+
+  // Check online status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, navigate, from]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -29,11 +51,51 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!isOnline) {
+      return;
+    }
+    
+    if (!formData.usernameOrEmail.trim() || !formData.password.trim()) {
+      return;
+    }
+    
+    console.log('Submitting login form');
     const result = await login(formData);
     
     if (result.success) {
+      console.log('Login successful, redirecting to:', from);
       navigate(from, { replace: true });
     }
+  };
+
+  const getErrorDisplay = () => {
+    if (!isOnline) {
+      return (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center space-x-2">
+          <WifiOff size={20} />
+          <span>No internet connection. Please check your network and try again.</span>
+        </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center space-x-2">
+          <AlertCircle size={20} />
+          <div>
+            <p>{error}</p>
+            {error.includes('connect') && (
+              <p className="text-sm mt-1">
+                The server might be starting up. Please wait a moment and try again.
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    return null;
   };
 
   return (
@@ -45,6 +107,14 @@ const Login = () => {
           <p className="mt-2 text-sm text-gray-600">
             Sign in to your Quiz Tournament account
           </p>
+          
+          {/* Connection Status */}
+          <div className={`mt-2 flex items-center justify-center space-x-1 text-sm ${
+            isOnline ? 'text-green-600' : 'text-red-600'
+          }`}>
+            {isOnline ? <Wifi size={16} /> : <WifiOff size={16} />}
+            <span>{isOnline ? 'Connected' : 'Offline'}</span>
+          </div>
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -54,11 +124,7 @@ const Login = () => {
             </div>
           )}
           
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-              {error}
-            </div>
-          )}
+          {getErrorDisplay()}
           
           <div className="space-y-4">
             <div>
@@ -74,7 +140,10 @@ const Login = () => {
                   required
                   value={formData.usernameOrEmail}
                   onChange={handleChange}
-                  className="form-input pl-10"
+                  disabled={isLoading || !isOnline}
+                  className={`form-input pl-10 ${
+                    (!isOnline || isLoading) ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
                   placeholder="Enter your username or email"
                 />
               </div>
@@ -93,13 +162,17 @@ const Login = () => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="form-input pl-10 pr-10"
+                  disabled={isLoading || !isOnline}
+                  className={`form-input pl-10 pr-10 ${
+                    (!isOnline || isLoading) ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
                   placeholder="Enter your password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                  disabled={isLoading || !isOnline}
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -118,8 +191,8 @@ const Login = () => {
 
           <button
             type="submit"
-            disabled={isLoading}
-            className="w-full btn-primary flex justify-center items-center space-x-2"
+            disabled={isLoading || !isOnline || !formData.usernameOrEmail.trim() || !formData.password.trim()}
+            className="w-full btn-primary flex justify-center items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <LoadingSpinner size="sm" />
