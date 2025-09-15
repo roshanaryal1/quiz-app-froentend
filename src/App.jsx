@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Navigation from './components/Navigation';
 import ProtectedRoute from './components/ProtectedRoute';
+import ApiDiagnostics from './components/ApiDiagnostics';
 
 // Pages
 import Home from './pages/Home';
@@ -42,6 +43,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/diagnostics" element={<ApiDiagnostics />} />
             
             {/* Protected routes - Any authenticated user */}
             <Route 
