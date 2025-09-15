@@ -1,3 +1,4 @@
+// src/pages/admin/CreateTournament.jsx - Debug version
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { tournamentAPI, testAPI } from '../../config/api';
@@ -10,6 +11,7 @@ const CreateTournament = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [availableCategories, setAvailableCategories] = useState([]);
+  const [debugInfo, setDebugInfo] = useState('');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -20,14 +22,25 @@ const CreateTournament = () => {
     minimumPassingScore: 70
   });
 
+  // Add error boundary to catch React errors
+  const [hasError, setHasError] = useState(false);
+
   // Fetch categories when component mounts
   React.useEffect(() => {
     const fetchCategories = async () => {
       try {
+        setDebugInfo('Fetching categories...');
+        console.log('Fetching categories from API...');
+        
         const response = await testAPI.categories();
+        console.log('Categories response:', response);
+        
         setAvailableCategories(response.data);
+        setDebugInfo('Categories loaded successfully');
       } catch (error) {
         console.error('Error fetching categories:', error);
+        setDebugInfo(`Error fetching categories: ${error.message}`);
+        
         // Fallback categories if API fails
         setAvailableCategories([
           'General Knowledge',
@@ -39,95 +52,164 @@ const CreateTournament = () => {
           'Art',
           'Politics'
         ]);
+        setDebugInfo('Using fallback categories');
       }
     };
     fetchCategories();
   }, []);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    if (error) setError('');
-    if (success) setSuccess('');
+    try {
+      const { name, value } = e.target;
+      console.log(`Form field changed: ${name} = ${value}`);
+      
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+      
+      if (error) setError('');
+      if (success) setSuccess('');
+    } catch (error) {
+      console.error('Error in handleChange:', error);
+      setError(`Form error: ${error.message}`);
+    }
   };
 
   const validateForm = () => {
-    const errors = [];
+    try {
+      console.log('Validating form data:', formData);
+      const errors = [];
 
-    if (!formData.name.trim()) {
-      errors.push('Tournament name is required');
-    }
-    if (!formData.category) {
-      errors.push('Category is required');
-    }
-    if (!formData.startDate) {
-      errors.push('Start date is required');
-    }
-    if (!formData.endDate) {
-      errors.push('End date is required');
-    }
-
-    // Date validation
-    if (formData.startDate && formData.endDate) {
-      const startDate = new Date(formData.startDate);
-      const endDate = new Date(formData.endDate);
-      const now = new Date();
-
-      if (startDate <= now) {
-        errors.push('Start date must be in the future');
+      if (!formData.name.trim()) {
+        errors.push('Tournament name is required');
       }
-      if (endDate <= startDate) {
-        errors.push('End date must be after start date');
+      if (!formData.category) {
+        errors.push('Category is required');
       }
-    }
+      if (!formData.startDate) {
+        errors.push('Start date is required');
+      }
+      if (!formData.endDate) {
+        errors.push('End date is required');
+      }
 
-    // Score validation
-    const score = parseInt(formData.minimumPassingScore);
-    if (isNaN(score) || score < 0 || score > 100) {
-      errors.push('Minimum passing score must be between 0 and 100');
-    }
+      // Date validation
+      if (formData.startDate && formData.endDate) {
+        const startDate = new Date(formData.startDate);
+        const endDate = new Date(formData.endDate);
+        const now = new Date();
 
-    return errors;
+        console.log('Date validation:', { startDate, endDate, now });
+
+        if (startDate <= now) {
+          errors.push('Start date must be in the future');
+        }
+        if (endDate <= startDate) {
+          errors.push('End date must be after start date');
+        }
+      }
+
+      // Score validation
+      const score = parseInt(formData.minimumPassingScore);
+      if (isNaN(score) || score < 0 || score > 100) {
+        errors.push('Minimum passing score must be between 0 and 100');
+      }
+
+      console.log('Validation errors:', errors);
+      return errors;
+    } catch (error) {
+      console.error('Error in validateForm:', error);
+      return [`Validation error: ${error.message}`];
+    }
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    const validationErrors = validateForm();
-    if (validationErrors.length > 0) {
-      setError(validationErrors[0]);
-      return;
-    }
-
-    setIsLoading(true);
-    setError('');
-
     try {
+      e.preventDefault();
+      console.log('Form submitted, starting validation...');
+      
+      const validationErrors = validateForm();
+      if (validationErrors.length > 0) {
+        setError(validationErrors[0]);
+        return;
+      }
+
+      setIsLoading(true);
+      setError('');
+      setDebugInfo('Creating tournament...');
+
+      console.log('Sending tournament data to API:', formData);
+
       // Format dates to ISO format
       const tournamentData = {
-        ...formData,
+        name: formData.name.trim(),
+        category: formData.category,
+        difficulty: formData.difficulty,
         startDate: new Date(formData.startDate).toISOString(),
         endDate: new Date(formData.endDate).toISOString(),
         minimumPassingScore: parseInt(formData.minimumPassingScore)
       };
 
-      await tournamentAPI.create(tournamentData);
+      console.log('Formatted tournament data:', tournamentData);
+      setDebugInfo('Sending data to server...');
+
+      const response = await tournamentAPI.create(tournamentData);
+      console.log('Tournament creation response:', response);
       
+      setDebugInfo('Tournament created successfully!');
       setSuccess('Tournament created successfully!');
+      
       setTimeout(() => {
+        console.log('Navigating to tournaments page...');
         navigate('/admin/tournaments');
       }, 1500);
       
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 'Failed to create tournament';
+      console.error('Error creating tournament:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.response?.status,
+        data: error.response?.data
+      });
+      
+      let errorMessage = 'Failed to create tournament';
+      
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.errors) {
+        errorMessage = Object.values(error.response.data.errors)[0];
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setError(errorMessage);
+      setDebugInfo(`Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Error boundary fallback
+  if (hasError) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-red-50 border border-red-200 p-6 rounded-lg">
+            <h2 className="text-xl font-bold text-red-800 mb-4">Something went wrong</h2>
+            <p className="text-red-700 mb-4">The component encountered an error. Please try refreshing the page.</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="btn-primary"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const difficulties = [
     { value: 'easy', label: 'Easy', color: 'text-green-600' },
@@ -138,6 +220,13 @@ const CreateTournament = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Debug Info */}
+        {process.env.NODE_ENV === 'development' && debugInfo && (
+          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-md text-sm">
+            Debug: {debugInfo}
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <button
@@ -331,6 +420,7 @@ const CreateTournament = () => {
                 type="button"
                 onClick={() => navigate('/admin/tournaments')}
                 className="btn-secondary"
+                disabled={isLoading}
               >
                 Cancel
               </button>
@@ -359,7 +449,6 @@ const CreateTournament = () => {
             <li>• Questions will be automatically fetched from the selected category</li>
             <li>• Each tournament will have exactly 10 questions</li>
             <li>• Players can only participate once per tournament</li>
-            <li>• All registered players will be notified via email when you create a tournament</li>
             <li>• You can edit tournament name and dates after creation, but not category or difficulty</li>
           </ul>
         </div>
