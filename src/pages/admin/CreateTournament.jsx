@@ -1,7 +1,7 @@
 // src/pages/admin/CreateTournament.jsx - Debug version
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { tournamentAPI, testAPI } from '../../config/api';
+import { tournamentAPI, testAPI, clearTournamentCache } from '../../config/api';
 import { Calendar, Trophy, Tag, Target, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -99,14 +99,21 @@ const CreateTournament = () => {
         const startDate = new Date(formData.startDate);
         const endDate = new Date(formData.endDate);
         const now = new Date();
+        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes from now
 
-        console.log('Date validation:', { startDate, endDate, now });
+        console.log('Date validation:', { startDate, endDate, now, fiveMinutesFromNow });
 
-        if (startDate <= now) {
-          errors.push('Start date must be in the future');
+        // Allow start date to be up to 5 minutes in the past (for timezone issues)
+        if (startDate < new Date(now.getTime() - 5 * 60 * 1000)) {
+          errors.push('Start date cannot be more than 5 minutes in the past');
         }
         if (endDate <= startDate) {
           errors.push('End date must be after start date');
+        }
+        // Ensure tournament duration is at least 30 minutes
+        const duration = endDate.getTime() - startDate.getTime();
+        if (duration < 30 * 60 * 1000) { // 30 minutes
+          errors.push('Tournament must be at least 30 minutes long');
         }
       }
 
@@ -128,15 +135,18 @@ const CreateTournament = () => {
     try {
       e.preventDefault();
       console.log('Form submitted, starting validation...');
+      console.log('Current form data:', formData);
       
       const validationErrors = validateForm();
       if (validationErrors.length > 0) {
+        console.log('Validation failed:', validationErrors);
         setError(validationErrors[0]);
         return;
       }
 
       setIsLoading(true);
       setError('');
+      setSuccess('');
       setDebugInfo('Creating tournament...');
 
       console.log('Sending tournament data to API:', formData);
@@ -156,14 +166,30 @@ const CreateTournament = () => {
 
       const response = await tournamentAPI.create(tournamentData);
       console.log('Tournament creation response:', response);
+      console.log('Response data:', response.data);
       
-      setDebugInfo('Tournament created successfully!');
-      setSuccess('Tournament created successfully!');
+      setDebugInfo('Tournament created successfully! Clearing cache...');
+      
+      // Clear cache to ensure new tournament appears immediately
+      clearTournamentCache();
+      
+      setDebugInfo('Cache cleared! Redirecting...');
+      setSuccess(`Tournament "${response.data.name}" created successfully!`);
+      
+      // Reset form
+      setFormData({
+        name: '',
+        category: '',
+        difficulty: 'medium',
+        startDate: '',
+        endDate: '',
+        minimumPassingScore: 70
+      });
       
       setTimeout(() => {
         console.log('Navigating to tournaments page...');
-        navigate('/admin/tournaments');
-      }, 1500);
+        navigate(`/admin/tournaments?success=Tournament "${response.data.name}" created successfully!`);
+      }, 2000);
       
     } catch (error) {
       console.error('Error creating tournament:', error);
@@ -171,17 +197,26 @@ const CreateTournament = () => {
         message: error.message,
         response: error.response,
         status: error.response?.status,
-        data: error.response?.data
+        data: error.response?.data,
+        stack: error.stack
       });
       
       let errorMessage = 'Failed to create tournament';
       
-      if (error.response?.data?.message) {
+      if (error.response?.status === 401) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'You do not have permission to create tournaments.';
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response.data?.message || 'Invalid tournament data. Please check all fields.';
+      } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.response?.data?.errors) {
         errorMessage = Object.values(error.response.data.errors)[0];
       } else if (error.message) {
         errorMessage = error.message;
+      } else if (!navigator.onLine) {
+        errorMessage = 'You appear to be offline. Please check your internet connection.';
       }
       
       setError(errorMessage);
@@ -216,6 +251,87 @@ const CreateTournament = () => {
     { value: 'medium', label: 'Medium', color: 'text-yellow-600' },
     { value: 'hard', label: 'Hard', color: 'text-red-600' }
   ];
+
+  // Add debug info display
+  const DebugInfo = () => {
+    if (!debugInfo) return null;
+    return (
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+        <p className="text-sm text-blue-700">
+          <strong>Debug:</strong> {debugInfo}
+        </p>
+      </div>
+    );
+  };
+
+  // Add authentication status check
+  const checkAuthStatus = () => {
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return {
+      hasToken: !!token,
+      user: user,
+      isAdmin: user.role === 'ADMIN',
+      tokenPreview: token ? token.substring(0, 20) + '...' : 'No token'
+    };
+  };
+
+  // Update debug info with auth status
+  useEffect(() => {
+    const authStatus = checkAuthStatus();
+    setDebugInfo(`Auth Status: ${authStatus.isAdmin ? 'Admin' : 'Not Admin'}, Token: ${authStatus.hasToken ? 'Present' : 'Missing'}`);
+  }, []);
+
+  // Test API connection
+  const testApiConnection = async () => {
+    try {
+      setDebugInfo('Testing API connection...');
+      const authStatus = checkAuthStatus();
+      
+      console.log('Auth status:', authStatus);
+      
+      // Test API health
+      const healthResponse = await fetch('https://quiz-tournament-api.onrender.com/api/test/health');
+      const healthData = await healthResponse.json();
+      
+      console.log('API Health:', healthData);
+      setDebugInfo(`API Health: ${healthData.status || 'Unknown'}`);
+      
+      // Test authentication
+      if (authStatus.hasToken) {
+        const authResponse = await fetch('https://quiz-tournament-api.onrender.com/api/users/me', {
+          headers: {
+            'Authorization': `Bearer ${authStatus.tokenPreview.replace('...', '') + localStorage.getItem('token').substring(20)}`
+          }
+        });
+        
+        if (authResponse.ok) {
+          const userData = await authResponse.json();
+          console.log('Authenticated user:', userData);
+          setDebugInfo(`Authenticated as: ${userData.username} (${userData.role})`);
+        } else {
+          console.error('Authentication failed:', authResponse.status);
+          setDebugInfo(`Authentication failed: ${authResponse.status}`);
+        }
+      } else {
+        setDebugInfo('No authentication token found');
+      }
+      
+    } catch (error) {
+      console.error('API test failed:', error);
+      setDebugInfo(`API test failed: ${error.message}`);
+    }
+  };
+
+  // Check if form is ready for submission
+  const isFormReady = availableCategories.length > 0 && !hasError;
+
+  // Update form readiness in debug info
+  useEffect(() => {
+    if (!isFormReady) {
+      setDebugInfo('Loading categories... Form not ready yet');
+    }
+  }, [isFormReady]);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -418,6 +534,14 @@ const CreateTournament = () => {
             <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
               <button
                 type="button"
+                onClick={testApiConnection}
+                className="btn-secondary"
+                disabled={isLoading}
+              >
+                Test API Connection
+              </button>
+              <button
+                type="button"
                 onClick={() => navigate('/admin/tournaments')}
                 className="btn-secondary"
                 disabled={isLoading}
@@ -426,20 +550,23 @@ const CreateTournament = () => {
               </button>
               <button
                 type="submit"
-                disabled={isLoading}
-                className="btn-primary inline-flex items-center space-x-2"
+                disabled={isLoading || !isFormReady}
+                className="btn-primary inline-flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <LoadingSpinner size="sm" />
                 ) : (
                   <>
                     <Trophy size={16} />
-                    <span>Create Tournament</span>
+                    <span>{isFormReady ? 'Create Tournament' : 'Loading...'}</span>
                   </>
                 )}
               </button>
             </div>
           </form>
+
+          {/* Debug Info Component */}
+          <DebugInfo />
         </div>
 
         {/* Info Section */}

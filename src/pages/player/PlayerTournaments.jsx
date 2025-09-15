@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { tournamentAPI } from '../../config/api';
+import { tournamentAPI, clearTournamentCache } from '../../config/api';
 import { Trophy, Clock, Award, Play, Heart, Users, Calendar } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -9,29 +9,37 @@ const PlayerTournaments = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     fetchTournaments();
   }, []);
+
+  useEffect(() => {
+    fetchTournaments();
+  }, [refreshTrigger]);
 
   const fetchTournaments = async () => {
     try {
       setIsLoading(true);
       setError('');
       
-      console.log('Fetching tournaments...');
+      console.log('Player: Fetching tournaments...');
       
       const response = await tournamentAPI.getAll();
-      console.log('Tournaments response:', response.data);
+      console.log('Player: Tournaments response:', response);
+      console.log('Player: Tournaments data:', response.data);
+      console.log('Player: Number of tournaments:', Array.isArray(response.data) ? response.data.length : 'Not an array');
       
       // Ensure tournaments is an array
       const tournamentsData = Array.isArray(response.data) 
         ? response.data 
         : [];
       
+      console.log('Player: Processed tournaments:', tournamentsData);
       setTournaments(tournamentsData);
     } catch (error) {
-      console.error('Error fetching tournaments:', error);
+      console.error('Player: Error fetching tournaments:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch tournaments';
       setError(errorMessage);
       
@@ -200,6 +208,36 @@ const PlayerTournaments = () => {
     );
   };
 
+  // Function to manually refresh tournaments
+  const refreshTournaments = () => {
+    console.log('Manually refreshing tournaments...');
+    clearTournamentCache(); // Clear cache before fetching
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  // Refresh when component becomes visible (e.g., when navigating back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('Page became visible, refreshing tournaments...');
+        refreshTournaments();
+      }
+    };
+
+    const handleFocus = () => {
+      console.log('Window focused, refreshing tournaments...');
+      refreshTournaments();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -213,8 +251,23 @@ const PlayerTournaments = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Quiz Tournaments</h1>
-          <p className="text-gray-600 mt-1">Challenge yourself with exciting quiz competitions</p>
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Quiz Tournaments</h1>
+              <p className="text-gray-600 mt-1">Challenge yourself with exciting quiz competitions</p>
+            </div>
+            <button
+              onClick={refreshTournaments}
+              disabled={isLoading}
+              className="btn-secondary inline-flex items-center space-x-2 disabled:opacity-50"
+              title="Refresh tournaments list"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
 
         {/* Error Message */}

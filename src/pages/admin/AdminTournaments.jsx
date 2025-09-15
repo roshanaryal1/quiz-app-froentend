@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { tournamentAPI } from '../../config/api';
-import { Plus, Edit, Trash2, Eye, Trophy, Users, ThumbsUp, Calendar, AlertTriangle } from 'lucide-react';
+import { tournamentAPI, clearTournamentCache } from '../../config/api';
+import { Plus, Edit, Trash2, Eye, Trophy, Users, ThumbsUp, Calendar, AlertTriangle, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
 
@@ -11,11 +11,13 @@ const AdminTournaments = () => {
   const [error, setError] = useState('');
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, tournament: null });
   const [isDeleting, setIsDeleting] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchTournaments();
-  }, []);
+  }, [refreshTrigger]);
 
   const fetchTournaments = async () => {
     try {
@@ -25,13 +27,16 @@ const AdminTournaments = () => {
       console.log('Admin: Fetching tournaments...');
       
       const response = await tournamentAPI.getAll();
-      console.log('Admin: Tournaments response:', response.data);
+      console.log('Admin: Tournaments response:', response);
+      console.log('Admin: Tournaments data:', response.data);
+      console.log('Admin: Number of tournaments:', Array.isArray(response.data) ? response.data.length : 'Not an array');
       
       // Ensure tournaments is an array
       const tournamentsData = Array.isArray(response.data) 
         ? response.data 
         : [];
       
+      console.log('Admin: Processed tournaments:', tournamentsData);
       setTournaments(tournamentsData);
     } catch (error) {
       console.error('Admin: Error fetching tournaments:', error);
@@ -70,6 +75,7 @@ const AdminTournaments = () => {
       await tournamentAPI.delete(deleteModal.tournament.id);
       setTournaments(prev => prev.filter(t => t.id !== deleteModal.tournament.id));
       setDeleteModal({ isOpen: false, tournament: null });
+      setSuccessMessage('Tournament deleted successfully');
     } catch (error) {
       setError('Failed to delete tournament');
       console.error('Error deleting tournament:', error);
@@ -202,6 +208,49 @@ const AdminTournaments = () => {
     );
   };
 
+  // Function to manually refresh tournaments
+  const refreshTournaments = () => {
+    console.log('Manually refreshing tournaments...');
+    clearTournamentCache(); // Clear cache before fetching
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  // Refresh when component becomes visible (e.g., when navigating back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('Page became visible, refreshing tournaments...');
+        refreshTournaments();
+      }
+    };
+
+    const handleFocus = () => {
+      console.log('Window focused, refreshing tournaments...');
+      refreshTournaments();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
+
+  // Check for success message from navigation
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get('success');
+    if (success) {
+      setSuccessMessage(success);
+      // Clear the URL parameter
+      window.history.replaceState({}, '', window.location.pathname);
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
+    }
+  }, []);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -220,15 +269,42 @@ const AdminTournaments = () => {
               <h1 className="text-3xl font-bold text-gray-900">Tournament Management</h1>
               <p className="text-gray-600 mt-1">Create, edit, and manage quiz tournaments</p>
             </div>
-            <Link
-              to="/admin/create-tournament"
-              className="btn-primary inline-flex items-center space-x-2"
-            >
-              <Plus size={20} />
-              <span>Create Tournament</span>
-            </Link>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={refreshTournaments}
+                disabled={isLoading}
+                className="btn-secondary inline-flex items-center space-x-2 disabled:opacity-50"
+                title="Refresh tournaments list"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Refresh</span>
+              </button>
+              <Link
+                to="/admin/create-tournament"
+                className="btn-primary inline-flex items-center space-x-2"
+              >
+                <Plus size={20} />
+                <span>Create Tournament</span>
+              </Link>
+            </div>
           </div>
         </div>
+
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md flex items-center space-x-2">
+            <CheckCircle size={20} />
+            <span>{successMessage}</span>
+            <button 
+              onClick={() => setSuccessMessage('')}
+              className="ml-auto text-green-500 hover:text-green-700"
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (

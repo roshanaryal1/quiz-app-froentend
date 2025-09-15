@@ -147,6 +147,12 @@ export const tournamentAPI = {
   getParticipated: () => api.get('/tournaments/player/participated'),
 };
 
+// Cache management functions
+export const clearTournamentCache = () => {
+  tournamentCache.clear();
+  console.log('Tournament cache cleared');
+};
+
 // User API calls
 export const userAPI = {
   getCurrentUser: () => api.get('/users/me'),
