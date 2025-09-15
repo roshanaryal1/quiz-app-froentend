@@ -62,7 +62,15 @@ const Home = () => {
         setApiInfo(infoResponse.data);
       }
 
-      const tournaments = tournamentsResponse.data || [];
+      // Ensure tournaments is always an array
+      let tournaments = tournamentsResponse.data || [];
+      
+      // Check if tournaments is actually an array
+      if (!Array.isArray(tournaments)) {
+        console.error('API returned non-array data:', tournaments);
+        tournaments = [];
+      }
+      
       setRecentTournaments(tournaments.slice(0, 3));
       
       // Calculate basic stats
@@ -79,6 +87,16 @@ const Home = () => {
 
     } catch (error) {
       console.error('Error fetching home data:', error);
+      console.log('Error details:', error.response?.data);
+      
+      // Set empty arrays as fallback
+      setRecentTournaments([]);
+      setStats({
+        totalTournaments: 0,
+        ongoingTournaments: 0,
+        totalParticipants: 0,
+      });
+      
       setError('Some data could not be loaded. Please try refreshing.');
     }
   };
@@ -309,7 +327,7 @@ const Home = () => {
       </div>
 
       {/* Recent Tournaments */}
-      {recentTournaments.length > 0 && (
+      {Array.isArray(recentTournaments) && recentTournaments.length > 0 && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Latest Tournaments</h2>
