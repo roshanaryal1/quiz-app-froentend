@@ -213,44 +213,50 @@ api.interceptors.response.use(
       console.warn(`Slow API request: ${response.config.url} took ${duration}ms`);
     }
     
-    // Try to sanitize response data to handle circular references
-    try {
-      if (response.data && typeof response.data === 'object') {
-        response.data = sanitizeTournamentData(response.data);
-      } else if (typeof response.data === 'string' && response.data.trim().startsWith('[{')) {
-        // If response is a string that looks like JSON, try to parse and sanitize it
-        try {
-          const parsed = JSON.parse(response.data);
-          response.data = sanitizeTournamentData(parsed);
-        } catch (parseError) {
-          console.warn('Response JSON parse failed:', parseError);
-          
-          // Try to extract individual objects using regex
-          const tournaments = [];
-          const objectRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
-          let match;
-          
-          while ((match = objectRegex.exec(response.data)) !== null) {
-            try {
-              const obj = JSON.parse(match[0]);
-              if (obj.id && obj.name && obj.category) {
-                tournaments.push(obj);
+    // Only sanitize tournament-related responses, not auth responses
+    const isTournamentEndpoint = response.config.url.includes('/tournaments');
+    const isAuthEndpoint = response.config.url.includes('/auth');
+    
+    if (isTournamentEndpoint && !isAuthEndpoint) {
+      // Try to sanitize response data to handle circular references
+      try {
+        if (response.data && typeof response.data === 'object') {
+          response.data = sanitizeTournamentData(response.data);
+        } else if (typeof response.data === 'string' && response.data.trim().startsWith('[{')) {
+          // If response is a string that looks like JSON, try to parse and sanitize it
+          try {
+            const parsed = JSON.parse(response.data);
+            response.data = sanitizeTournamentData(parsed);
+          } catch (parseError) {
+            console.warn('Response JSON parse failed:', parseError);
+            
+            // Try to extract individual objects using regex
+            const tournaments = [];
+            const objectRegex = /\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g;
+            let match;
+            
+            while ((match = objectRegex.exec(response.data)) !== null) {
+              try {
+                const obj = JSON.parse(match[0]);
+                if (obj.id && obj.name && obj.category) {
+                  tournaments.push(obj);
+                }
+              } catch (objParseError) {
+                // Skip malformed objects
               }
-            } catch (objParseError) {
-              // Skip malformed objects
+            }
+            
+            if (tournaments.length > 0) {
+              response.data = sanitizeTournamentData(tournaments);
+            } else {
+              response.data = [];
             }
           }
-          
-          if (tournaments.length > 0) {
-            response.data = sanitizeTournamentData(tournaments);
-          } else {
-            response.data = [];
-          }
         }
+      } catch (sanitizeError) {
+        console.warn('Response sanitization failed:', sanitizeError);
+        response.data = [];
       }
-    } catch (sanitizeError) {
-      console.warn('Response sanitization failed:', sanitizeError);
-      response.data = [];
     }
     
     return response;
@@ -322,13 +328,73 @@ export const warmupApi = async () => {
   }
 };
 
+// Auth API calls - using a separate axios instance to avoid sanitization
+const authApi = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 15000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add request interceptor for auth API
+authApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Add request timestamp for debugging
+    config.metadata = { startTime: new Date().getTime() };
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Simple response interceptor for auth API (no sanitization)
+authApi.interceptors.response.use(
+  (response) => {
+    // Log slow requests
+    const duration = new Date().getTime() - response.config.metadata.startTime;
+    if (duration > 3000) {
+      console.warn(`Slow auth API request: ${response.config.url} took ${duration}ms`);
+    }
+    return response;
+  },
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error('Auth request timeout');
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Auth API calls
 export const authAPI = {
-  login: (credentials) => api.post('/auth/signin', credentials),
-  registerAdmin: (userData) => api.post('/auth/signup/admin', userData),
-  registerPlayer: (userData) => api.post('/auth/signup/player', userData),
-  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
-  resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
+  login: async (credentials) => {
+    try {
+      const response = await authApi.post('/auth/signin', credentials);
+      return response.data;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  },
+  
+  register: async (userData, userType) => {
+    try {
+      const endpoint = userType === 'admin' ? '/auth/signup/admin' : '/auth/signup/player';
+      const response = await authApi.post(endpoint, userData);
+      return response.data;
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  }
 };
 
 // Tournament API calls with caching
