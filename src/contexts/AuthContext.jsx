@@ -120,9 +120,10 @@ export const AuthProvider = ({ children }) => {
       console.log('Attempting login with credentials:', { username: credentials.usernameOrEmail });
       
       const response = await authAPI.login(credentials);
-      console.log('Login response received:', response.data);
+      console.log('Login response received:', response);
       
-      const { accessToken, id, username, email, role } = response.data;
+      // Fix: response is already the data object from authAPI.login
+      const { accessToken, id, username, email, role } = response;
       
       if (!accessToken || !id || !username || !role) {
         throw new Error('Invalid response from server: missing required fields');
@@ -166,8 +167,10 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
     try {
-      const registerFunction = userType === 'admin' ? authAPI.registerAdmin : authAPI.registerPlayer;
-      await registerFunction(userData);
+      console.log('Attempting registration for:', userType);
+      
+      const response = await authAPI.register(userData, userType);
+      console.log('Registration response received:', response);
       
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
       return { success: true };
