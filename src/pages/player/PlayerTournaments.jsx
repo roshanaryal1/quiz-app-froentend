@@ -28,6 +28,15 @@ const PlayerTournaments = () => {
       
       const response = await tournamentAPI.getAll();
       console.log('Player: Tournaments response:', response);
+      
+      // Check if there's an error in the response
+      if (response.error) {
+        console.error('Player: API returned error:', response.error);
+        setError(`Failed to load tournaments: ${response.error}`);
+        setTournaments([]);
+        return;
+      }
+      
       console.log('Player: Tournaments data:', response.data);
       console.log('Player: Number of tournaments:', Array.isArray(response.data) ? response.data.length : 'Not an array');
       
