@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Trophy, Mail, Lock, Eye, EyeOff, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -15,9 +15,10 @@ const Login = () => {
   const { login, isLoading, error, clearError, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const from = location.state?.from?.pathname || '/';
-  const message = location.state?.message;
+  const message = location.state?.message || searchParams.get('message');
 
   // Check online status
   useEffect(() => {
@@ -70,6 +71,16 @@ const Login = () => {
   };
 
   const getErrorDisplay = () => {
+    // Show message from URL parameter first
+    if (message) {
+      return (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md flex items-center space-x-2">
+          <AlertCircle size={20} />
+          <span>{message}</span>
+        </div>
+      );
+    }
+    
     if (!isOnline) {
       return (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center space-x-2">

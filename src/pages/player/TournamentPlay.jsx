@@ -35,16 +35,48 @@ const TournamentPlay = () => {
   const fetchTournamentData = async () => {
     try {
       setIsLoading(true);
+      setError('');
+      
+      console.log('Fetching tournament data for ID:', id);
+      
       const [tournamentResponse, questionsResponse] = await Promise.all([
         tournamentAPI.getById(id),
         tournamentAPI.getQuestions(id)
       ]);
       
+      console.log('Tournament response:', tournamentResponse.data);
+      console.log('Questions response:', questionsResponse.data);
+      
       setTournament(tournamentResponse.data);
-      setQuestions(questionsResponse.data);
+      
+      // Ensure questions is an array
+      const questionsData = Array.isArray(questionsResponse.data) 
+        ? questionsResponse.data 
+        : [];
+      
+      setQuestions(questionsData);
     } catch (error) {
-      setError('Failed to load tournament data');
       console.error('Error fetching tournament:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to load tournament data';
+      
+      // If it's a network error, show a more helpful message
+      if (!navigator.onLine) {
+        setError('You appear to be offline. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED') {
+        setError('Request timed out. The server might be busy or unavailable.');
+      } else if (error.response?.status === 401) {
+        setError('Your session has expired. Redirecting to login...');
+        // Redirect will be handled by API interceptor, but show message first
+        setTimeout(() => {
+          window.location.href = '/login?message=Your session has expired. Please log in again.';
+        }, 2000);
+      } else if (error.response?.status === 403) {
+        setError('You do not have permission to access this tournament. Please check your account type.');
+      } else if (error.response?.status === 404) {
+        setError('Tournament not found. It may have been deleted or the link is incorrect.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -183,14 +215,28 @@ const TournamentPlay = () => {
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">Tournament Not Available</h1>
-            <p className="text-gray-600 mb-6">This tournament cannot be loaded or has no questions available.</p>
-            <button
-              onClick={() => navigate('/player/tournaments')}
-              className="btn-primary"
-            >
-              Back to Tournaments
-            </button>
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">
+              {error ? 'Error Loading Tournament' : 'Tournament Not Available'}
+            </h1>
+            <p className="text-gray-600 mb-6">
+              {error || 'This tournament cannot be loaded or has no questions available.'}
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate('/player/tournaments')}
+                className="btn-primary"
+              >
+                Back to Tournaments
+              </button>
+              {error && (
+                <button
+                  onClick={fetchTournamentData}
+                  className="btn-secondary"
+                >
+                  Try Again
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -283,7 +329,7 @@ const TournamentPlay = () => {
               <div className="bg-primary-100 p-4 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <Trophy className="text-primary-600" size={32} />
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{tournament.name}</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">{tournament.name || 'Unnamed Tournament'}</h1>
               <p className="text-gray-600">Ready to test your knowledge?</p>
             </div>
 
@@ -300,11 +346,11 @@ const TournamentPlay = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Category:</span>
-                    <span className="font-medium">{tournament.category}</span>
+                    <span className="font-medium">{tournament.category || 'General'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Difficulty:</span>
-                    <span className="font-medium capitalize">{tournament.difficulty}</span>
+                    <span className="font-medium capitalize">{tournament.difficulty || 'medium'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Questions:</span>
@@ -312,7 +358,7 @@ const TournamentPlay = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Pass Score:</span>
-                    <span className="font-medium">{tournament.minimumPassingScore}%</span>
+                    <span className="font-medium">{tournament.minimumPassingScore || 70}%</span>
                   </div>
                 </div>
               </div>
@@ -349,7 +395,7 @@ const TournamentPlay = () => {
                 <li>• You can navigate between questions using Previous/Next buttons</li>
                 <li>• Your answers are saved automatically as you progress</li>
                 <li>• You can only submit once, so review your answers carefully</li>
-                <li>• You need {tournament.minimumPassingScore}% to pass this tournament</li>
+                <li>• You need {tournament.minimumPassingScore || 70}% to pass this tournament</li>
               </ul>
             </div>
 
@@ -385,7 +431,7 @@ const TournamentPlay = () => {
             <div className="flex items-center space-x-3">
               <Trophy className="text-primary-600" size={24} />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{tournament.name}</h1>
+                <h1 className="text-xl font-bold text-gray-900">{tournament.name || 'Unnamed Tournament'}</h1>
                 <p className="text-sm text-gray-600">
                   Question {currentQuestionIndex + 1} of {questions.length}
                 </p>
@@ -425,47 +471,53 @@ const TournamentPlay = () => {
             <div className="mb-6">
               <div className="flex items-center justify-between mb-4">
                 <span className="bg-primary-100 text-primary-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                  {currentQuestion.category}
+                  {currentQuestion.category || 'General'}
                 </span>
                 <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
                   currentQuestion.difficulty === 'easy' ? 'bg-green-100 text-green-800' :
                   currentQuestion.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-red-100 text-red-800'
                 }`}>
-                  {currentQuestion.difficulty}
+                  {currentQuestion.difficulty || 'medium'}
                 </span>
               </div>
 
               <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                {currentQuestion.question}
+                {currentQuestion.question || 'Question not available'}
               </h2>
 
               {/* Answer Options */}
               <div className="space-y-3">
-                {currentQuestion.options.map((option, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleAnswerSelect(option)}
-                    className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                      selectedAnswer === option
-                        ? 'border-primary-500 bg-primary-50 text-primary-900'
-                        : 'border-gray-200 bg-white hover:border-gray-300 text-gray-900'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                {currentQuestion.options && currentQuestion.options.length > 0 ? (
+                  currentQuestion.options.map((option, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleAnswerSelect(option)}
+                      className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
                         selectedAnswer === option
-                          ? 'border-primary-500 bg-primary-500'
-                          : 'border-gray-300'
-                      }`}>
-                        {selectedAnswer === option && (
-                          <div className="w-2 h-2 rounded-full bg-white"></div>
-                        )}
+                          ? 'border-primary-500 bg-primary-50 text-primary-900'
+                          : 'border-gray-200 bg-white hover:border-gray-300 text-gray-900'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                          selectedAnswer === option
+                            ? 'border-primary-500 bg-primary-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedAnswer === option && (
+                            <div className="w-2 h-2 rounded-full bg-white"></div>
+                          )}
+                        </div>
+                        <span>{option}</span>
                       </div>
-                      <span>{option}</span>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No answer options available for this question.
+                  </div>
+                )}
               </div>
             </div>
 

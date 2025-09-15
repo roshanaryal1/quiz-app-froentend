@@ -257,4 +257,61 @@ This project is part of the **IA608001 Intermediate Application Development Conc
 - [x] Git version control with meaningful commits
 - [x] Professional documentation
 
+## 🔧 Troubleshooting
+
+### White Screen Issues
+
+If you encounter white screens when clicking "Manage Tournament" (Admin) or "Play Now" (Player), this is usually due to authentication problems:
+
+#### Quick Diagnosis
+1. Visit `http://localhost:3000/auth-diagnostics` to check your authentication status
+2. Look for these indicators:
+   - ✅ **API is healthy** - Server is responding
+   - ✅ **Authenticated** - You are logged in
+   - ✅ **Token present** - Authentication token exists
+   - ✅ **Authentication working** - API accepts your credentials
+
+#### Common Solutions
+
+**If you're not logged in:**
+1. Go to the Login page
+2. Use these test credentials:
+   - **Admin**: username: `admin`, password: `admin123`
+   - **Player**: Register a new account or use existing player credentials
+
+**If your session expired:**
+- The app will automatically redirect you to login with a message
+- Simply log in again to restore access
+
+**If API is not responding:**
+- Check your internet connection
+- The API might be sleeping (free tier limitation)
+- Wait 30 seconds and try again
+
+#### Manual Testing
+You can also test API endpoints directly:
+```bash
+# Test API health
+curl https://quiz-tournament-api.onrender.com/api/test/health
+
+# Test categories (no auth required)
+curl https://quiz-tournament-api.onrender.com/api/test/categories
+```
+
+#### Automated Testing
+Run the included test script to verify your setup:
+```bash
+# In browser console (after app is loaded)
+runQuickTest()
+
+# Or run the test file directly
+node test-setup.js
+```
+
+### Still Having Issues?
+1. Clear your browser cache and localStorage
+2. Try logging out and logging back in
+3. Check the browser console for error messages
+4. Visit the diagnostics page for detailed status information
+
 Built with ❤️ using React, Vite, and Tailwind CSS

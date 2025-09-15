@@ -17,11 +17,33 @@ const PlayerTournaments = () => {
   const fetchTournaments = async () => {
     try {
       setIsLoading(true);
+      setError('');
+      
+      console.log('Fetching tournaments...');
+      
       const response = await tournamentAPI.getAll();
-      setTournaments(response.data);
+      console.log('Tournaments response:', response.data);
+      
+      // Ensure tournaments is an array
+      const tournamentsData = Array.isArray(response.data) 
+        ? response.data 
+        : [];
+      
+      setTournaments(tournamentsData);
     } catch (error) {
-      setError('Failed to fetch tournaments');
       console.error('Error fetching tournaments:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch tournaments';
+      setError(errorMessage);
+      
+      // Set empty array as fallback
+      setTournaments([]);
+      
+      // If it's a network error, show a more helpful message
+      if (!navigator.onLine) {
+        setError('You appear to be offline. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED') {
+        setError('Request timed out. The server might be busy or unavailable.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +104,7 @@ const PlayerTournaments = () => {
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-              {tournament.name}
+              {tournament.name || 'Unnamed Tournament'}
             </h3>
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getStatusColor()}`}>
               {getStatusLabel()}
@@ -101,18 +123,18 @@ const PlayerTournaments = () => {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-500">Category:</span>
-              <p className="font-medium">{tournament.category}</p>
+              <p className="font-medium">{tournament.category || 'General'}</p>
             </div>
             <div>
               <span className="text-gray-500">Difficulty:</span>
-              <p className="font-medium capitalize">{tournament.difficulty}</p>
+              <p className="font-medium capitalize">{tournament.difficulty || 'medium'}</p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2 text-sm text-gray-600">
             <Calendar size={16} />
             <span>
-              {new Date(tournament.startDate).toLocaleDateString()} - {new Date(tournament.endDate).toLocaleDateString()}
+              {tournament.startDate ? new Date(tournament.startDate).toLocaleDateString() : 'TBD'} - {tournament.endDate ? new Date(tournament.endDate).toLocaleDateString() : 'TBD'}
             </span>
           </div>
 
@@ -120,7 +142,7 @@ const PlayerTournaments = () => {
             <div className="text-center">
               <div className="flex items-center justify-center space-x-1">
                 <Award className="text-amber-500" size={16} />
-                <span className="text-sm font-medium">{tournament.minimumPassingScore}%</span>
+                <span className="text-sm font-medium">{tournament.minimumPassingScore || 70}%</span>
               </div>
               <p className="text-xs text-gray-500">Pass Score</p>
             </div>
@@ -145,7 +167,7 @@ const PlayerTournaments = () => {
 
         <div className="flex justify-between items-center">
           <div className="text-sm text-gray-500">
-            by {tournament.creator?.firstName} {tournament.creator?.lastName}
+            by {tournament.creator?.firstName || 'Unknown'} {tournament.creator?.lastName || 'Creator'}
           </div>
           
           {status === 'ongoing' ? (

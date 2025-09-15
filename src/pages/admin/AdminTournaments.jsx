@@ -20,11 +20,43 @@ const AdminTournaments = () => {
   const fetchTournaments = async () => {
     try {
       setIsLoading(true);
+      setError('');
+      
+      console.log('Admin: Fetching tournaments...');
+      
       const response = await tournamentAPI.getAll();
-      setTournaments(response.data);
+      console.log('Admin: Tournaments response:', response.data);
+      
+      // Ensure tournaments is an array
+      const tournamentsData = Array.isArray(response.data) 
+        ? response.data 
+        : [];
+      
+      setTournaments(tournamentsData);
     } catch (error) {
-      setError('Failed to fetch tournaments');
-      console.error('Error fetching tournaments:', error);
+      console.error('Admin: Error fetching tournaments:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch tournaments';
+      setError(errorMessage);
+      
+      // Set empty array as fallback
+      setTournaments([]);
+      
+      // If it's a network error, show a more helpful message
+      if (!navigator.onLine) {
+        setError('You appear to be offline. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED') {
+        setError('Request timed out. The server might be busy or unavailable.');
+      } else if (error.response?.status === 401) {
+        setError('Your session has expired. Redirecting to login...');
+        // Redirect will be handled by API interceptor, but show message first
+        setTimeout(() => {
+          window.location.href = '/login?message=Your session has expired. Please log in again.';
+        }, 2000);
+      } else if (error.response?.status === 403) {
+        setError('You do not have permission to access this resource. Please contact an administrator.');
+      } else if (error.response?.status === 404) {
+        setError('No tournaments found. Try creating your first tournament.');
+      }
     } finally {
       setIsLoading(false);
     }

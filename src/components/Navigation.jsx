@@ -103,6 +103,12 @@ const Navigation = () => {
                       >
                         Profile Settings
                       </Link>
+                      <Link
+                        to="/auth-diagnostics"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Connection Status
+                      </Link>
                       <button
                         onClick={handleLogout}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
@@ -194,6 +200,13 @@ const Navigation = () => {
                   className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
                 >
                   Profile Settings
+                </Link>
+                <Link
+                  to="/auth-diagnostics"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                >
+                  Connection Status
                 </Link>
                 <button
                   onClick={handleLogout}

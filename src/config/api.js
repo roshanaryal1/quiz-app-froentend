@@ -50,10 +50,19 @@ api.interceptors.response.use(
     }
     
     if (error.response?.status === 401) {
+      console.log('401 Unauthorized - clearing auth data and redirecting to login');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      
+      // Use React Router navigation if available, otherwise use window.location
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login?message=Your session has expired. Please log in again.';
+      }
+    } else if (error.response?.status === 403) {
+      console.log('403 Forbidden - user does not have permission');
+      // Don't redirect, let the component handle the 403 error
     }
+    
     return Promise.reject(error);
   }
 );
