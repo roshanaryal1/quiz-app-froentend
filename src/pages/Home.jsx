@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/Home.jsx - Optimized version
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Trophy, Users, Clock, Award, Play, Shield } from 'lucide-react';
-import { tournamentAPI, testAPI } from '../config/api';
+import { Trophy, Users, Clock, Award, Play, Shield, AlertCircle } from 'lucide-react';
+import { tournamentAPI, testAPI, checkApiHealth, warmupApi } from '../config/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const Home = () => {
@@ -15,40 +16,72 @@ const Home = () => {
   const [recentTournaments, setRecentTournaments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [apiInfo, setApiInfo] = useState(null);
+  const [error, setError] = useState('');
+  const [isWarmingUp, setIsWarmingUp] = useState(false);
 
   useEffect(() => {
-    const fetchHomeData = async () => {
-      try {
-        // Fetch API info
-        const infoResponse = await testAPI.info();
-        setApiInfo(infoResponse.data);
-
-        // Fetch tournaments
-        const tournamentsResponse = await tournamentAPI.getAll();
-        const tournaments = tournamentsResponse.data;
-        
-        setRecentTournaments(tournaments.slice(0, 3));
-        
-        // Calculate basic stats
-        const now = new Date();
-        const ongoing = tournaments.filter(t => 
-          new Date(t.startDate) <= now && new Date(t.endDate) >= now
-        );
-        
-        setStats({
-          totalTournaments: tournaments.length,
-          ongoingTournaments: ongoing.length,
-          totalParticipants: tournaments.reduce((sum, t) => sum + (t.attempts?.length || 0), 0),
-        });
-      } catch (error) {
-        console.error('Error fetching home data:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchHomeData();
+    initializeApp();
   }, []);
+
+  const initializeApp = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+
+      // First check if API is healthy
+      const isHealthy = await checkApiHealth();
+      
+      if (!isHealthy) {
+        console.log('API appears to be sleeping, warming up...');
+        setIsWarmingUp(true);
+        await warmupApi();
+        setIsWarmingUp(false);
+      }
+
+      await fetchHomeData();
+    } catch (error) {
+      console.error('Failed to initialize app:', error);
+      setError('Unable to connect to the server. Please try refreshing the page.');
+    } finally {
+      setIsLoading(false);
+      setIsWarmingUp(false);
+    }
+  };
+
+  const fetchHomeData = async () => {
+    try {
+      // Fetch data in parallel but with error handling
+      const promises = [
+        testAPI.info().catch(err => ({ data: null })),
+        tournamentAPI.getAll().catch(err => ({ data: [] }))
+      ];
+
+      const [infoResponse, tournamentsResponse] = await Promise.all(promises);
+      
+      if (infoResponse.data) {
+        setApiInfo(infoResponse.data);
+      }
+
+      const tournaments = tournamentsResponse.data || [];
+      setRecentTournaments(tournaments.slice(0, 3));
+      
+      // Calculate basic stats
+      const now = new Date();
+      const ongoing = tournaments.filter(t => 
+        new Date(t.startDate) <= now && new Date(t.endDate) >= now
+      );
+      
+      setStats({
+        totalTournaments: tournaments.length,
+        ongoingTournaments: ongoing.length,
+        totalParticipants: tournaments.reduce((sum, t) => sum + (t.attempts?.length || 0), 0),
+      });
+
+    } catch (error) {
+      console.error('Error fetching home data:', error);
+      setError('Some data could not be loaded. Please try refreshing.');
+    }
+  };
 
   const StatCard = ({ icon: Icon, label, value, color = 'blue' }) => {
     const colorClasses = {
@@ -128,16 +161,61 @@ const Home = () => {
     );
   };
 
-  if (isLoading) {
+  // Loading screen with API warmup message
+  if (isLoading || isWarmingUp) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading..." />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-gray-600">
+            {isWarmingUp ? 'Waking up the server... This may take up to 30 seconds.' : 'Loading...'}
+          </p>
+          {isWarmingUp && (
+            <p className="mt-2 text-sm text-gray-500">
+              The server was sleeping and is now starting up. Please wait...
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Error screen with retry option
+  if (error && recentTournaments.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md">
+          <AlertCircle className="mx-auto h-16 w-16 text-red-500 mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Connection Error</h2>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <button 
+            onClick={initializeApp}
+            className="btn-primary mr-4"
+          >
+            Try Again
+          </button>
+          <Link to="/login" className="btn-secondary">
+            Continue to Login
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Show error banner but don't block the page */}
+      {error && (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex">
+            <AlertCircle className="h-5 w-5 text-yellow-400" />
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
       <div className="bg-gradient-to-r from-primary-600 to-primary-800 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
