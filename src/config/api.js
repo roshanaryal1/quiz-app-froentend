@@ -342,7 +342,7 @@ export const authAPI = {
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
 };
 
-// Tournament API with robust caching
+// Tournament API with robust caching and immediate UI updates
 export const tournamentAPI = {
   getAll: async (forceRefresh = false) => {
     console.log('🎯 TournamentAPI.getAll called, forceRefresh:', forceRefresh);
@@ -355,7 +355,10 @@ export const tournamentAPI = {
     
     try {
       console.log('🌐 Fetching fresh tournaments from API...');
+      console.log(`🔗 API URL: ${currentApiUrl}/tournaments`);
+      
       const response = await api.get('/tournaments');
+      console.log('📊 Raw API response:', response);
       
       // Handle different response structures
       let tournaments = [];
@@ -387,7 +390,7 @@ export const tournamentAPI = {
       }
       
       const sanitized = sanitizeData(tournaments);
-      console.log(`📊 Processed ${sanitized.length} tournaments`);
+      console.log(`📊 Processed ${sanitized.length} tournaments:`, sanitized);
       
       // Update cache
       tournamentCache = sanitized;
@@ -397,6 +400,13 @@ export const tournamentAPI = {
       return { ...response, data: sanitized };
     } catch (error) {
       console.error('❌ Tournament API error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL
+      });
       
       // Return cached data if available
       if (tournamentCache) {
@@ -412,10 +422,27 @@ export const tournamentAPI = {
   
   create: async (data) => {
     console.log('➕ Creating tournament:', data);
-    const response = await api.post('/tournaments', data);
-    clearTournamentCache();
-    console.log('✅ Tournament created, cache cleared');
-    return response;
+    console.log(`🔗 POST URL: ${currentApiUrl}/tournaments`);
+    
+    try {
+      const response = await api.post('/tournaments', data);
+      console.log('✅ Tournament created successfully:', response.data);
+      
+      // Clear cache to force fresh fetch
+      clearTournamentCache();
+      console.log('🗑️ Cache cleared after tournament creation');
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Failed to create tournament:', error);
+      console.error('❌ Creation error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+      throw error;
+    }
   },
   
   update: async (id, data) => {

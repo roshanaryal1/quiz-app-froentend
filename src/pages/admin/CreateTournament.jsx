@@ -28,16 +28,18 @@ const CreateTournament = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        console.log('Fetching categories from API...');
+        console.log('🎯 CreateTournament: Fetching categories from API...');
         
         // FIXED: Use testAPI.categories() instead of tournamentAPI.getCategories()
         const response = await testAPI.categories();
-        console.log('Categories response:', response);
+        console.log('🎯 CreateTournament: Categories response:', response);
         
         if (response.data && Array.isArray(response.data)) {
           setAvailableCategories(response.data);
+          console.log('✅ CreateTournament: Loaded categories from API');
         } else {
           // Fallback categories if API response is not as expected
+          console.log('⚠️ CreateTournament: Using fallback categories');
           setAvailableCategories([
             'General Knowledge',
             'Science & Nature',
@@ -50,9 +52,10 @@ const CreateTournament = () => {
           ]);
         }
       } catch (error) {
-        console.error('Error fetching categories:', error);
+        console.error('❌ CreateTournament: Error fetching categories:', error);
         
         // Fallback categories if API fails
+        console.log('⚠️ CreateTournament: Using fallback categories due to API error');
         setAvailableCategories([
           'General Knowledge',
           'Science & Nature',
@@ -144,12 +147,12 @@ const CreateTournament = () => {
   const handleSubmit = async (e) => {
     try {
       e.preventDefault();
-      console.log('Form submitted, starting validation...');
-      console.log('Current form data:', formData);
+      console.log('🎯 CreateTournament: Form submitted, starting validation...');
+      console.log('🎯 CreateTournament: Current form data:', formData);
       
       const validationErrors = validateForm();
       if (validationErrors.length > 0) {
-        console.log('Validation failed:', validationErrors);
+        console.log('❌ CreateTournament: Validation failed:', validationErrors);
         setError(validationErrors[0]);
         return;
       }
@@ -158,7 +161,7 @@ const CreateTournament = () => {
       setError('');
       setSuccess('');
 
-      console.log('Sending tournament data to API:', formData);
+      console.log('🎯 CreateTournament: Sending tournament data to API:', formData);
 
       // Format dates to ISO format
       const tournamentData = {
@@ -170,13 +173,20 @@ const CreateTournament = () => {
         minimumPassingScore: parseInt(formData.minimumPassingScore)
       };
 
-      console.log('Formatted tournament data:', tournamentData);
+      console.log('🎯 CreateTournament: Formatted tournament data:', tournamentData);
 
+      // FIXED: Create tournament and handle response properly
       const response = await tournamentAPI.create(tournamentData);
-      console.log('Tournament creation response:', response);
-      console.log('Response data:', response.data);
+      console.log('✅ CreateTournament: Tournament creation response:', response);
+      console.log('✅ CreateTournament: Response data:', response.data);
       
-      setSuccess(`Tournament "${response.data.name || tournamentData.name}" created successfully!`);
+      // Show success message
+      const tournamentName = response.data?.name || tournamentData.name;
+      setSuccess(`Tournament "${tournamentName}" created successfully!`);
+      console.log(`✅ CreateTournament: Tournament "${tournamentName}" created successfully`);
+      
+      // FIXED: Trigger refresh for AdminTournaments component
+      localStorage.setItem('tournament_created', Date.now().toString());
       
       // Reset form
       setFormData({
@@ -188,11 +198,12 @@ const CreateTournament = () => {
         minimumPassingScore: 70
       });
       
-      // Navigate back after a short delay
+      // FIXED: Navigate back immediately to refresh the tournament list
+      // The AdminTournaments component will fetch fresh data when it mounts
       setTimeout(() => {
-        console.log('Navigating to tournaments page...');
+        console.log('🎯 CreateTournament: Navigating to tournaments page...');
         navigate('/admin/tournaments');
-      }, 2000);
+      }, 1500); // Shorter delay for better UX
       
     } catch (error) {
       console.error('Error creating tournament:', error);

@@ -23,13 +23,34 @@ const AdminTournaments = () => {
 
   useEffect(() => {
     console.log('🎯 AdminTournaments component mounted/updated');
-    fetchTournaments();
-  }, [location.pathname]); // Force refresh when navigating back
+    console.log('📍 Current location:', location.pathname);
+    
+    // Always fetch tournaments when component mounts or location changes
+    fetchTournaments(true); // Force refresh on mount
+    
+    // Listen for tournament creation events via localStorage
+    const handleStorageChange = (e) => {
+      if (e.key === 'tournament_created') {
+        console.log('🎯 AdminTournaments: Tournament creation detected, refreshing...');
+        fetchTournaments(true);
+        localStorage.removeItem('tournament_created');
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [location.pathname]); // Dependency on location.pathname ensures refresh on navigation
 
   const fetchTournaments = async (forceClear = false) => {
     try {
       setIsLoading(true);
       setError('');
+      
+      console.log('🎯 Admin: Starting tournament fetch...');
+      console.log('🎯 Admin: Force clear cache:', forceClear);
       
       // Force clear cache if requested
       if (forceClear) {
@@ -37,10 +58,11 @@ const AdminTournaments = () => {
         clearTournamentCache();
       }
       
-      console.log('🎯 Admin: Fetching tournaments...');
+      console.log('🎯 Admin: Fetching tournaments from API...');
       
-      const response = await tournamentAPI.getAll();
-      console.log('🎯 Admin: Tournaments response:', response);
+      // Fetch tournaments with force refresh to bypass cache
+      const response = await tournamentAPI.getAll(forceClear);
+      console.log('🎯 Admin: Raw tournaments response:', response);
       console.log('🎯 Admin: Response.data:', response.data);
       console.log('🎯 Admin: Response.data type:', typeof response.data);
       
@@ -48,76 +70,70 @@ const AdminTournaments = () => {
       let tournamentsData = [];
       
       if (Array.isArray(response.data)) {
-        // Direct array response
         tournamentsData = response.data;
-        console.log('🎯 Admin: Using direct array from response.data');
-      } else if (response.data && typeof response.data === 'object') {
-        // Check common property names for tournaments
-        const possibleKeys = ['tournaments', 'data', 'content', 'items', 'list'];
-        
-        for (const key of possibleKeys) {
+        console.log('🎯 Admin: Found array directly in response.data');
+      } else if (response.data && response.data.tournaments) {
+        tournamentsData = response.data.tournaments;
+        console.log('🎯 Admin: Found tournaments in response.data.tournaments');
+      } else if (response.data && response.data.content) {
+        tournamentsData = response.data.content;
+        console.log('🎯 Admin: Found tournaments in response.data.content');
+      } else if (response.data && response.data.data) {
+        tournamentsData = response.data.data;
+        console.log('🎯 Admin: Found tournaments in response.data.data');
+      } else if (response.data) {
+        // Try to find any array in the response
+        const keys = Object.keys(response.data);
+        for (const key of keys) {
           if (Array.isArray(response.data[key])) {
             tournamentsData = response.data[key];
-            console.log(`🎯 Admin: Using response.data.${key} as tournaments array`);
+            console.log(`🎯 Admin: Found tournaments in response.data.${key}`);
             break;
           }
         }
-        
-        // If no known key found, search all properties
-        if (tournamentsData.length === 0) {
-          const keys = Object.keys(response.data);
-          console.log('🎯 Admin: All response data keys:', keys);
-          for (const key of keys) {
-            if (Array.isArray(response.data[key])) {
-              tournamentsData = response.data[key];
-              console.log(`🎯 Admin: Using response.data.${key} as tournaments array`);
-              break;
-            }
-          }
-        }
       }
       
-      console.log('🎯 Admin: Final tournaments data:', tournamentsData);
-      console.log('🎯 Admin: Number of tournaments:', tournamentsData.length);
+      // Ensure we have an array
+      if (!Array.isArray(tournamentsData)) {
+        console.warn('⚠️ Admin: No valid tournament array found, using empty array');
+        tournamentsData = [];
+      }
+      
+      console.log(`✅ Admin: Successfully fetched ${tournamentsData.length} tournaments`);
+      console.log('📊 Admin: Tournament data sample:', tournamentsData.slice(0, 2));
+      
+      // Update state with fetched tournaments
       setTournaments(tournamentsData);
       
-      // Clear any success message after showing tournaments
-      if (successMessage) {
-        setTimeout(() => setSuccessMessage(''), 3000);
-      }
+      // Clear any previous errors
+      setError('');
       
     } catch (error) {
       console.error('❌ Admin: Error fetching tournaments:', error);
       console.error('❌ Admin: Error details:', {
         message: error.message,
-        response: error.response,
         status: error.response?.status,
-        data: error.response?.data,
-        stack: error.stack
+        statusText: error.response?.statusText,
+        url: error.config?.url,
+        baseURL: error.config?.baseURL
       });
       
-      let errorMessage = 'Failed to fetch tournaments';
-      
-      if (!navigator.onLine) {
-        errorMessage = 'You appear to be offline. Please check your internet connection.';
-      } else if (error.code === 'ECONNABORTED') {
-        errorMessage = 'Request timed out. The server might be busy or unavailable.';
-      } else if (error.response?.status === 401) {
-        errorMessage = 'Your session has expired. Redirecting to login...';
-        setTimeout(() => {
-          window.location.href = '/login?message=Your session has expired. Please log in again.';
-        }, 2000);
+      // Set user-friendly error message based on error type
+      if (error.response?.status === 401) {
+        setError('Authentication required. Please log in again.');
       } else if (error.response?.status === 403) {
-        errorMessage = 'You do not have permission to access this resource.';
-      } else if (error.response?.status === 500) {
-        errorMessage = 'Server error occurred. Please try again later.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = `API Error: ${error.message}`;
+        setError('You do not have permission to view tournaments.');
+      } else if (error.response?.status === 404) {
+        setError('Tournament service not found. Please check your connection.');
+      } else if (error.response?.status >= 500) {
+        setError('Server error. Please try again later.');
+      } else if (error.code === 'NETWORK_ERROR') {
+        setError('Network error. Please check your internet connection.');
+      } else {
+        setError('Failed to fetch tournaments. Please try again.');
       }
       
-      setError(errorMessage);
+      // Set empty array on error to prevent undefined issues
       setTournaments([]);
     } finally {
       setIsLoading(false);
