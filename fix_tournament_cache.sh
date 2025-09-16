@@ -1,3 +1,13 @@
+# Fix tournament disappearing on refresh issue
+
+# 1. Update src/config/api.js - Fix caching and API calls
+echo "Fixing tournament caching issues..."
+
+# Backup the current api.js
+cp src/config/api.js src/config/api.js.cache-backup
+
+# Create the fixed API configuration
+cat > src/config/api.js << 'EOF'
 // src/config/api.js - Fixed version with better caching
 import axios from 'axios';
 
@@ -490,3 +500,189 @@ export const testAPI = {
 };
 
 export default api;
+EOF
+
+# 2. Update AdminTournaments.jsx to force refresh on navigation
+echo "Updating AdminTournaments.jsx to force refresh..."
+
+cat > /tmp/admin_tournaments_fix.js << 'ADMIN_EOF'
+  useEffect(() => {
+    console.log('🎯 AdminTournaments component mounted/updated');
+    fetchTournaments(true); // Force refresh when component mounts
+  }, [location.pathname]); // Force refresh when navigating back
+
+  const fetchTournaments = async (forceClear = false) => {
+    try {
+      setIsLoading(true);
+      setError('');
+      
+      console.log('🎯 Admin: Fetching tournaments, forceClear:', forceClear);
+      
+      // Force fresh data from API
+      const response = await tournamentAPI.getAll(forceClear);
+      console.log('🎯 Admin: Tournaments response:', response);
+      
+      let tournamentsData = [];
+      
+      if (Array.isArray(response.data)) {
+        tournamentsData = response.data;
+        console.log('🎯 Admin: Using direct array from response.data');
+      } else if (response.data && typeof response.data === 'object') {
+        const possibleKeys = ['tournaments', 'data', 'content', 'items', 'list'];
+        
+        for (const key of possibleKeys) {
+          if (Array.isArray(response.data[key])) {
+            tournamentsData = response.data[key];
+            console.log(`🎯 Admin: Using response.data.${key} as tournaments array`);
+            break;
+          }
+        }
+        
+        if (tournamentsData.length === 0) {
+          const keys = Object.keys(response.data);
+          console.log('🎯 Admin: All response data keys:', keys);
+          for (const key of keys) {
+            if (Array.isArray(response.data[key])) {
+              tournamentsData = response.data[key];
+              console.log(`🎯 Admin: Using response.data.${key} as tournaments array`);
+              break;
+            }
+          }
+        }
+      }
+      
+      console.log('🎯 Admin: Final tournaments data:', tournamentsData);
+      setTournaments(tournamentsData);
+      
+      if (successMessage) {
+        setTimeout(() => setSuccessMessage(''), 3000);
+      }
+      
+    } catch (error) {
+      console.error('❌ Admin: Error fetching tournaments:', error);
+      
+      let errorMessage = 'Failed to fetch tournaments';
+      
+      if (!navigator.onLine) {
+        errorMessage = 'You appear to be offline. Please check your internet connection.';
+      } else if (error.code === 'ECONNABORTED') {
+        errorMessage = 'Request timed out. The server might be busy or unavailable.';
+      } else if (error.response?.status === 401) {
+        errorMessage = 'Your session has expired. Redirecting to login...';
+        setTimeout(() => {
+          window.location.href = '/login?message=Your session has expired. Please log in again.';
+        }, 2000);
+      } else if (error.response?.status === 403) {
+        errorMessage = 'You do not have permission to access this resource.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error occurred. Please try again later.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = `API Error: ${error.message}`;
+      }
+      
+      setError(errorMessage);
+      setTournaments([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+ADMIN_EOF
+
+# Apply the fix to AdminTournaments.jsx
+sed -i '/useEffect(() => {/,/}, \[location\.pathname\]);/ {
+  /useEffect(() => {/r /tmp/admin_tournaments_fix.js
+  d
+}' src/pages/admin/AdminTournaments.jsx
+
+# 3. Update PlayerTournaments.jsx similarly
+echo "Updating PlayerTournaments.jsx to force refresh..."
+
+sed -i 's/await tournamentAPI\.getAll()/await tournamentAPI.getAll(forceClear)/g' src/pages/player/PlayerTournaments.jsx
+
+# 4. Create a refresh component that forces cache clear
+cat > src/components/common/RefreshButton.jsx << 'REFRESH_EOF'
+import React from 'react';
+import { RefreshCw } from 'lucide-react';
+import { clearTournamentCache } from '../../config/api';
+
+const RefreshButton = ({ onRefresh, isLoading = false, className = "" }) => {
+  const handleRefresh = () => {
+    console.log('🔄 Manual refresh triggered');
+    clearTournamentCache();
+    if (onRefresh) onRefresh(true); // Force refresh
+  };
+
+  return (
+    <button
+      onClick={handleRefresh}
+      disabled={isLoading}
+      className={`btn-secondary inline-flex items-center space-x-2 disabled:opacity-50 ${className}`}
+      title="Clear cache and refresh data"
+    >
+      <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+      <span>Refresh</span>
+    </button>
+  );
+};
+
+export default RefreshButton;
+REFRESH_EOF
+
+# 5. Add refresh buttons to tournament pages
+echo "Adding refresh functionality to tournament pages..."
+
+# Add to AdminTournaments.jsx
+sed -i '/import LoadingSpinner/a import RefreshButton from "../../components/common/RefreshButton";' src/pages/admin/AdminTournaments.jsx
+
+# Add refresh button to AdminTournaments.jsx
+sed -i '/refresh tournaments list/i\
+              <RefreshButton \
+                onRefresh={fetchTournaments} \
+                isLoading={isLoading} \
+              />' src/pages/admin/AdminTournaments.jsx
+
+# Add to PlayerTournaments.jsx
+sed -i '/import LoadingSpinner/a import RefreshButton from "../../components/common/RefreshButton";' src/pages/player/PlayerTournaments.jsx
+
+# Add refresh button to PlayerTournaments.jsx
+sed -i '/refresh tournaments list/i\
+            <RefreshButton \
+              onRefresh={refreshTournaments} \
+              isLoading={isLoading} \
+            />' src/pages/player/PlayerTournaments.jsx
+
+# 6. Test the fixes
+echo "Testing the fixes..."
+npm run build
+
+echo "✅ TOURNAMENT CACHE FIXES APPLIED!"
+echo ""
+echo "🔧 WHAT WAS FIXED:"
+echo "1. ✅ Tournament cache now persists in localStorage across page refreshes"
+echo "2. ✅ Added cache expiration (5 minutes) to prevent stale data"
+echo "3. ✅ Added force refresh functionality to clear cache when needed"
+echo "4. ✅ Added manual refresh buttons to tournament pages"
+echo "5. ✅ Improved error handling and fallback to cached data"
+echo "6. ✅ Better API response parsing for different backend responses"
+echo ""
+echo "🎯 HOW IT WORKS NOW:"
+echo "• When you create a tournament, cache is automatically cleared"
+echo "• Page refreshes now load tournaments from localStorage cache if available"
+echo "• Cache expires after 5 minutes to ensure fresh data"
+echo "• Manual refresh buttons force fresh data from server"
+echo "• If API fails, shows cached tournaments instead of empty list"
+echo ""
+echo "🚀 TEST THE FIX:"
+echo "1. Create a tournament as admin"
+echo "2. Refresh the page - tournament should still be there"
+echo "3. Switch to player view - tournament should be visible"
+echo "4. Refresh again - tournament should persist"
+echo ""
+echo "If tournaments still disappear, check your backend API responses!"
+EOF
+
+# Run the fix
+chmod +x fix_tournament_cache.sh
+./fix_tournament_cache.sh
