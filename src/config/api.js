@@ -230,7 +230,9 @@ let tournamentCache = null;
 let cacheTime = null;
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes only
 
+// Enhanced cache clearing with debugging
 export const clearTournamentCache = () => {
+  console.log('🧹 Clearing tournament cache...');
   tournamentCache = null;
   cacheTime = null;
 };
@@ -291,41 +293,90 @@ export const authAPI = {
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
 };
 
-// Tournament API - with smart caching
+// Tournament API - with enhanced debugging and proper cache management
 export const tournamentAPI = {
   getAll: async () => {
+    console.log('🎯 Fetching tournaments...');
+    
     // Check cache first
     if (tournamentCache && cacheTime && (Date.now() - cacheTime < CACHE_DURATION)) {
+      console.log('📋 Using cached tournaments:', tournamentCache);
       return { data: tournamentCache };
     }
     
-    const response = await api.get('/tournaments');
-    const sanitized = sanitizeData(response.data);
-    
-    // Update cache
-    tournamentCache = sanitized;
-    cacheTime = Date.now();
-    
-    return { ...response, data: sanitized };
+    try {
+      const response = await api.get('/tournaments');
+      console.log('🎯 Raw tournaments response:', response.data);
+      
+      // Handle different response structures
+      let tournaments = [];
+      if (Array.isArray(response.data)) {
+        tournaments = response.data;
+      } else if (response.data.tournaments && Array.isArray(response.data.tournaments)) {
+        tournaments = response.data.tournaments;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        tournaments = response.data.data;
+      } else if (response.data.content && Array.isArray(response.data.content)) {
+        tournaments = response.data.content;
+      } else {
+        console.warn('⚠️ Unexpected tournaments response structure:', response.data);
+        tournaments = [];
+      }
+      
+      console.log('🎯 Processed tournaments:', tournaments);
+      const sanitized = sanitizeData(tournaments);
+      
+      // Update cache
+      tournamentCache = sanitized;
+      cacheTime = Date.now();
+      
+      return { ...response, data: sanitized };
+    } catch (error) {
+      console.error('❌ Error fetching tournaments:', error);
+      throw error;
+    }
   },
   
   getById: (id) => api.get(`/tournaments/${id}`),
   
   create: async (data) => {
-    const response = await api.post('/tournaments', data);
-    clearTournamentCache(); // Clear cache on create
-    return response;
+    console.log('🚀 Creating tournament:', data);
+    try {
+      const response = await api.post('/tournaments', data);
+      console.log('✅ Tournament created successfully:', response.data);
+      
+      // Force clear cache to ensure fresh data
+      console.log('🗑️ Clearing tournament cache...');
+      clearTournamentCache();
+      
+      // Optionally refetch tournaments immediately to update cache
+      console.log('🔄 Refetching tournaments after creation...');
+      setTimeout(() => {
+        tournamentAPI.getAll().catch(err => 
+          console.warn('⚠️ Failed to refetch tournaments:', err)
+        );
+      }, 1000);
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Error creating tournament:', error);
+      throw error;
+    }
   },
   
   update: async (id, data) => {
+    console.log('🔄 Updating tournament:', id, data);
     const response = await api.put(`/tournaments/${id}`, data);
-    clearTournamentCache(); // Clear cache on update
+    console.log('🔄 Tournament updated, clearing cache...');
+    clearTournamentCache();
     return response;
   },
   
   delete: async (id) => {
+    console.log('🗑️ Deleting tournament:', id);
     const response = await api.delete(`/tournaments/${id}`);
-    clearTournamentCache(); // Clear cache on delete
+    console.log('🗑️ Tournament deleted, clearing cache...');
+    clearTournamentCache();
     return response;
   },
   
@@ -353,6 +404,60 @@ export const testAPI = {
   health: () => api.get('/test/health'),
   info: () => api.get('/test/info'),
   categories: () => api.get('/test/categories'),
+  
+  // Add tournament debugging function
+  debugTournaments: async () => {
+    try {
+      console.log('🧪 Testing tournaments API...');
+      
+      // Clear cache first
+      clearTournamentCache();
+      
+      // Test the raw API call
+      const currentUrl = getCurrentApiUrl();
+      const token = localStorage.getItem('token');
+      
+      console.log('🧪 Using URL:', currentUrl);
+      console.log('🧪 Using token:', token ? 'Present' : 'Missing');
+      
+      const response = await fetch(`${currentUrl}/tournaments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      console.log('🧪 Raw API response status:', response.status);
+      console.log('🧪 Raw API response headers:', Array.from(response.headers.entries()));
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🧪 Raw API response data:', data);
+        console.log('🧪 Data type:', typeof data);
+        console.log('🧪 Is array:', Array.isArray(data));
+        
+        if (typeof data === 'object' && data !== null) {
+          console.log('🧪 Object keys:', Object.keys(data));
+          Object.keys(data).forEach(key => {
+            console.log(`🧪 ${key}:`, typeof data[key], Array.isArray(data[key]) ? 'ARRAY' : '');
+            if (Array.isArray(data[key])) {
+              console.log(`🧪 ${key} length:`, data[key].length);
+            }
+          });
+        }
+        
+        return data;
+      } else {
+        const errorText = await response.text();
+        console.error('🧪 API Error:', errorText);
+        throw new Error(`API Error: ${response.status} - ${errorText}`);
+      }
+      
+    } catch (error) {
+      console.error('🧪 Test error:', error);
+      throw error;
+    }
+  }
 };
 
 export default api;

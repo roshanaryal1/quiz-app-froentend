@@ -170,11 +170,11 @@ const CreateTournament = () => {
       
       setDebugInfo('Tournament created successfully! Clearing cache...');
       
-      // Clear cache to ensure new tournament appears immediately
+      // Force clear cache to ensure new tournament appears immediately
       clearTournamentCache();
       
-      setDebugInfo('Cache cleared! Redirecting...');
-      setSuccess(`Tournament "${response.data.name}" created successfully!`);
+      setDebugInfo('Cache cleared! Tournament should now appear in list.');
+      setSuccess(`Tournament "${response.data.name || tournamentData.name}" created successfully!`);
       
       // Reset form
       setFormData({
@@ -186,10 +186,11 @@ const CreateTournament = () => {
         minimumPassingScore: 70
       });
       
+      // Navigate back after a longer delay to ensure cache is cleared
       setTimeout(() => {
         console.log('Navigating to tournaments page...');
-        navigate(`/admin/tournaments?success=Tournament "${response.data.name}" created successfully!`);
-      }, 2000);
+        navigate('/admin/tournaments');
+      }, 2500);
       
     } catch (error) {
       console.error('Error creating tournament:', error);
@@ -209,6 +210,8 @@ const CreateTournament = () => {
         errorMessage = 'You do not have permission to create tournaments.';
       } else if (error.response?.status === 400) {
         errorMessage = error.response.data?.message || 'Invalid tournament data. Please check all fields.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error. The tournament may have been created but not visible yet. Please refresh the tournaments page.';
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.response?.data?.errors) {
@@ -831,6 +834,23 @@ const CreateTournament = () => {
                 disabled={isLoading}
               >
                 Test Create
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setDebugInfo('Testing tournaments API structure...');
+                    const result = await testAPI.debugTournaments();
+                    setDebugInfo(`✅ API Test Complete. Check console for detailed results.`);
+                  } catch (error) {
+                    console.error('API debug test failed:', error);
+                    setDebugInfo(`❌ API Debug failed: ${error.message}`);
+                  }
+                }}
+                className="btn-secondary text-xs px-2 py-1"
+                disabled={isLoading}
+              >
+                Debug API
               </button>
               <button
                 type="button"

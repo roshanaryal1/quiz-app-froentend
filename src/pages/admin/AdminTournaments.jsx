@@ -3,8 +3,8 @@
 // ================================
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { tournamentAPI } from '../../config/api';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { tournamentAPI, clearTournamentCache, testAPI } from '../../config/api';
 import { Plus, Edit, Trash2, Eye, Trophy, Users, ThumbsUp, Calendar, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
@@ -17,54 +17,76 @@ const AdminTournaments = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    console.log('🎯 AdminTournaments component mounted/updated');
     fetchTournaments();
-  }, []);
+  }, [location.pathname]); // Force refresh when navigating back
 
-  const fetchTournaments = async () => {
+  const fetchTournaments = async (forceClear = false) => {
     try {
       setIsLoading(true);
       setError('');
       
-      console.log('Admin: Fetching tournaments...');
+      // Force clear cache if requested
+      if (forceClear) {
+        console.log('🧹 Force clearing tournament cache...');
+        clearTournamentCache();
+      }
+      
+      console.log('🎯 Admin: Fetching tournaments...');
       
       const response = await tournamentAPI.getAll();
-      console.log('Admin: Tournaments response:', response);
-      console.log('Admin: Response.data:', response.data);
-      console.log('Admin: Response.data type:', typeof response.data);
-      console.log('Admin: Response.data.tournaments:', response.data?.tournaments);
+      console.log('🎯 Admin: Tournaments response:', response);
+      console.log('🎯 Admin: Response.data:', response.data);
+      console.log('🎯 Admin: Response.data type:', typeof response.data);
       
-      // Handle different possible response structures
+      // Handle different possible response structures more robustly
       let tournamentsData = [];
       
       if (Array.isArray(response.data)) {
         // Direct array response
         tournamentsData = response.data;
-        console.log('Admin: Using direct array from response.data');
-      } else if (Array.isArray(response.data?.tournaments)) {
-        // Nested array in tournaments property
-        tournamentsData = response.data.tournaments;
-        console.log('Admin: Using response.data.tournaments');
+        console.log('🎯 Admin: Using direct array from response.data');
       } else if (response.data && typeof response.data === 'object') {
-        // Try to find arrays in the response object
-        const keys = Object.keys(response.data);
-        console.log('Admin: Response data keys:', keys);
-        for (const key of keys) {
+        // Check common property names for tournaments
+        const possibleKeys = ['tournaments', 'data', 'content', 'items', 'list'];
+        
+        for (const key of possibleKeys) {
           if (Array.isArray(response.data[key])) {
             tournamentsData = response.data[key];
-            console.log(`Admin: Using response.data.${key} as tournaments array`);
+            console.log(`🎯 Admin: Using response.data.${key} as tournaments array`);
             break;
+          }
+        }
+        
+        // If no known key found, search all properties
+        if (tournamentsData.length === 0) {
+          const keys = Object.keys(response.data);
+          console.log('🎯 Admin: All response data keys:', keys);
+          for (const key of keys) {
+            if (Array.isArray(response.data[key])) {
+              tournamentsData = response.data[key];
+              console.log(`🎯 Admin: Using response.data.${key} as tournaments array`);
+              break;
+            }
           }
         }
       }
       
-      console.log('Admin: Final tournaments data:', tournamentsData);
-      console.log('Admin: Number of tournaments:', tournamentsData.length);
+      console.log('🎯 Admin: Final tournaments data:', tournamentsData);
+      console.log('🎯 Admin: Number of tournaments:', tournamentsData.length);
       setTournaments(tournamentsData);
+      
+      // Clear any success message after showing tournaments
+      if (successMessage) {
+        setTimeout(() => setSuccessMessage(''), 3000);
+      }
+      
     } catch (error) {
-      console.error('Admin: Error fetching tournaments:', error);
-      console.error('Admin: Error details:', {
+      console.error('❌ Admin: Error fetching tournaments:', error);
+      console.error('❌ Admin: Error details:', {
         message: error.message,
         response: error.response,
         status: error.response?.status,
@@ -311,6 +333,30 @@ const AdminTournaments = () => {
                 title="Test tournaments API"
               >
                 <span>Test API</span>
+              </button>
+              <button
+                onClick={() => fetchTournaments(true)}
+                className="btn-secondary inline-flex items-center space-x-2"
+                disabled={isLoading}
+              >
+                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+                <span>Refresh</span>
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    console.log('🧪 Running API debug test...');
+                    const result = await testAPI.debugTournaments();
+                    console.log('🧪 Debug test completed:', result);
+                  } catch (error) {
+                    console.error('🧪 Debug test failed:', error);
+                  }
+                }}
+                className="btn-secondary inline-flex items-center space-x-2 text-xs"
+                disabled={isLoading}
+              >
+                <Eye size={16} />
+                <span>Debug API</span>
               </button>
               <Link
                 to="/admin/create-tournament"
