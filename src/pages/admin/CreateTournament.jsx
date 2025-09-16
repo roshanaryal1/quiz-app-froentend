@@ -1,7 +1,7 @@
-// src/pages/admin/CreateTournament.jsx - Debug version
+// src/pages/admin/CreateTournament.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { tournamentAPI, testAPI, clearTournamentCache, getCurrentApiUrl, switchBackend, checkApiHealth } from '../../config/api';
+import { tournamentAPI } from '../../config/api';
 import { Calendar, Trophy, Tag, Target, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -11,7 +11,6 @@ const CreateTournament = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [availableCategories, setAvailableCategories] = useState([]);
-  const [debugInfo, setDebugInfo] = useState('');
   
   const [formData, setFormData] = useState({
     name: '',
@@ -29,17 +28,14 @@ const CreateTournament = () => {
   React.useEffect(() => {
     const fetchCategories = async () => {
       try {
-        setDebugInfo('Fetching categories...');
         console.log('Fetching categories from API...');
         
-        const response = await testAPI.categories();
+        const response = await tournamentAPI.getCategories();
         console.log('Categories response:', response);
         
         setAvailableCategories(response.data);
-        setDebugInfo('Categories loaded successfully');
       } catch (error) {
         console.error('Error fetching categories:', error);
-        setDebugInfo(`Error fetching categories: ${error.message}`);
         
         // Fallback categories if API fails
         setAvailableCategories([
@@ -52,7 +48,6 @@ const CreateTournament = () => {
           'Art',
           'Politics'
         ]);
-        setDebugInfo('Using fallback categories');
       }
     };
     fetchCategories();
@@ -147,7 +142,6 @@ const CreateTournament = () => {
       setIsLoading(true);
       setError('');
       setSuccess('');
-      setDebugInfo('Creating tournament...');
 
       console.log('Sending tournament data to API:', formData);
 
@@ -162,18 +156,11 @@ const CreateTournament = () => {
       };
 
       console.log('Formatted tournament data:', tournamentData);
-      setDebugInfo('Sending data to server...');
 
       const response = await tournamentAPI.create(tournamentData);
       console.log('Tournament creation response:', response);
       console.log('Response data:', response.data);
       
-      setDebugInfo('Tournament created successfully! Clearing cache...');
-      
-      // Force clear cache to ensure new tournament appears immediately
-      clearTournamentCache();
-      
-      setDebugInfo('Cache cleared! Tournament should now appear in list.');
       setSuccess(`Tournament "${response.data.name || tournamentData.name}" created successfully!`);
       
       // Reset form
@@ -186,11 +173,11 @@ const CreateTournament = () => {
         minimumPassingScore: 70
       });
       
-      // Navigate back after a longer delay to ensure cache is cleared
+      // Navigate back after a short delay
       setTimeout(() => {
         console.log('Navigating to tournaments page...');
         navigate('/admin/tournaments');
-      }, 2500);
+      }, 2000);
       
     } catch (error) {
       console.error('Error creating tournament:', error);
@@ -223,7 +210,6 @@ const CreateTournament = () => {
       }
       
       setError(errorMessage);
-      setDebugInfo(`Error: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -255,157 +241,12 @@ const CreateTournament = () => {
     { value: 'hard', label: 'Hard', color: 'text-red-600' }
   ];
 
-  // Add debug info display
-  const DebugInfo = () => {
-    if (!debugInfo) return null;
-    return (
-      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-        <p className="text-sm text-blue-700">
-          <strong>Debug:</strong> {debugInfo}
-        </p>
-      </div>
-    );
-  };
-
-  // Add authentication status check
-  const checkAuthStatus = () => {
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return {
-      hasToken: !!token,
-      user: user,
-      isAdmin: user.role === 'ADMIN',
-      tokenPreview: token ? token.substring(0, 20) + '...' : 'No token'
-    };
-  };
-
-  // Update debug info with auth status
-  useEffect(() => {
-    const authStatus = checkAuthStatus();
-    setDebugInfo(`Auth Status: ${authStatus.isAdmin ? 'Admin' : 'Not Admin'}, Token: ${authStatus.hasToken ? 'Present' : 'Missing'}`);
-  }, []);
-
-  // Test API connection
-  const testApiConnection = async () => {
-    try {
-      setDebugInfo('Testing API connection...');
-      const authStatus = checkAuthStatus();
-      const currentUrl = getCurrentApiUrl();
-      
-      console.log('Auth status:', authStatus);
-      console.log('Current API URL:', currentUrl);
-      
-      // Test API health
-      const healthResponse = await fetch(`${currentUrl}/test/health`);
-      const healthData = await healthResponse.json();
-      
-      console.log('API Health:', healthData);
-      setDebugInfo(`API Health: ${healthData.status || 'Unknown'} - ${currentUrl}`);
-      
-      // Test authentication
-      if (authStatus.hasToken) {
-        const token = localStorage.getItem('token');
-        const authResponse = await fetch(`${currentUrl}/users/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (authResponse.ok) {
-          const userData = await authResponse.json();
-          console.log('Authenticated user:', userData);
-          setDebugInfo(`Authenticated as: ${userData.username} (${userData.role}) - ${currentUrl}`);
-          
-          // Test tournaments API specifically
-          console.log('Testing tournaments API...');
-          const tournamentsResponse = await fetch(`${currentUrl}/tournaments`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          console.log('Tournaments API response status:', tournamentsResponse.status);
-          console.log('Tournaments API response headers:', Array.from(tournamentsResponse.headers.entries()));
-          
-          if (tournamentsResponse.ok) {
-            const tournamentsData = await tournamentsResponse.json();
-            console.log('Tournaments API data:', tournamentsData);
-            setDebugInfo(`Tournaments API: Success - ${JSON.stringify(tournamentsData, null, 2)}`);
-          } else {
-            const errorText = await tournamentsResponse.text();
-            console.error('Tournaments API error:', errorText);
-            
-            // Try switching backend and retrying
-            console.log('Attempting backend switch...');
-            const switched = await switchBackend(true);
-            
-            if (switched) {
-              const newUrl = getCurrentApiUrl();
-              console.log(`Switched to: ${newUrl}, retrying...`);
-              
-              const retryResponse = await fetch(`${newUrl}/tournaments`, {
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-                }
-              });
-              
-              if (retryResponse.ok) {
-                const retryData = await retryResponse.json();
-                console.log('Retry success:', retryData);
-                setDebugInfo(`✅ Tournaments API working after backend switch to: ${newUrl}`);
-              } else {
-                const retryError = await retryResponse.text();
-                setDebugInfo(`❌ Tournaments API still failing after switch: ${retryError}`);
-              }
-            } else {
-              setDebugInfo(`Tournaments API Error (${tournamentsResponse.status}): ${errorText}. No alternative backend available.`);
-            }
-          }
-        } else {
-          console.error('Authentication failed:', authResponse.status, await authResponse.text());
-          setDebugInfo(`Authentication failed: ${authResponse.status}`);
-        }
-      } else {
-        setDebugInfo('No authentication token found');
-      }
-      
-    } catch (error) {
-      console.error('API test failed:', error);
-      setDebugInfo(`API test failed: ${error.message}`);
-    }
-  };
-
   // Check if form is ready for submission
   const isFormReady = availableCategories.length > 0 && !hasError;
-
-  // Update form readiness in debug info
-  useEffect(() => {
-    const updateStatus = async () => {
-      const currentUrl = getCurrentApiUrl();
-      const isHealthy = await checkApiHealth();
-      
-      if (!isFormReady) {
-        setDebugInfo('Loading categories... Form not ready yet');
-      } else {
-        setDebugInfo(`Using backend: ${currentUrl} (${isHealthy ? 'Healthy' : 'Unhealthy'})`);
-      }
-    };
-    
-    updateStatus();
-  }, [isFormReady]);
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Debug Info */}
-        {process.env.NODE_ENV === 'development' && debugInfo && (
-          <div className="mb-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-md text-sm">
-            Debug: {debugInfo}
-          </div>
-        )}
 
         {/* Header */}
         <div className="mb-8">
@@ -598,262 +439,6 @@ const CreateTournament = () => {
             <div className="flex flex-wrap justify-end gap-2 pt-6 border-t border-gray-200">
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    setDebugInfo('Switching backend...');
-                    const switched = await switchBackend(true);
-                    const currentUrl = getCurrentApiUrl();
-                    
-                    if (switched) {
-                      setDebugInfo(`✅ Switched to: ${currentUrl}`);
-                    } else {
-                      setDebugInfo(`ℹ️ Already using optimal backend: ${currentUrl}`);
-                    }
-                  } catch (error) {
-                    setDebugInfo(`❌ Backend switch failed: ${error.message}`);
-                  }
-                }}
-                className="btn-secondary text-xs px-2 py-1"
-                disabled={isLoading}
-              >
-                Switch Backend
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    setDebugInfo('Testing backend health and troubleshooting...');
-                    const token = localStorage.getItem('token');
-                    const currentUrl = getCurrentApiUrl();
-                    
-                    console.log(`🔍 BACKEND TROUBLESHOOTING START - Using: ${currentUrl}`);
-                    
-                    // 1. Test current backend health
-                    try {
-                      console.log('Testing current backend health...');
-                      const isHealthy = await checkApiHealth();
-                      console.log(`Current backend (${currentUrl}) health: ${isHealthy ? '✅ Healthy' : '❌ Unhealthy'}`);
-                      
-                      if (!isHealthy) {
-                        console.log('🔄 Attempting backend switch...');
-                        const switched = await switchBackend(true);
-                        const newUrl = getCurrentApiUrl();
-                        console.log(`Backend switch result: ${switched ? `✅ Switched to ${newUrl}` : '❌ No better backend found'}`);
-                      }
-                    } catch (e) {
-                      console.error('❌ Health check failed:', e);
-                    }
-                    
-                    // 2. Test if it's a database connectivity issue
-                    try {
-                      console.log('Testing user endpoint (should work)...');
-                      const userResponse = await fetch(`${getCurrentApiUrl()}/users/me`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                      });
-                      
-                      if (userResponse.ok) {
-                        console.log('✅ Users endpoint works - DB connection is OK');
-                      } else {
-                        console.log('❌ Users endpoint failed - possible auth issue');
-                      }
-                    } catch (e) {
-                      console.error('❌ Users endpoint failed:', e);
-                    }
-                    
-                    // 3. Try accessing tournaments with minimal headers
-                    try {
-                      console.log('Testing tournaments with minimal request...');
-                      const minimalResponse = await fetch(`${getCurrentApiUrl()}/tournaments`, {
-                        method: 'GET',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                      });
-                      
-                      console.log('Minimal tournaments response:', minimalResponse.status);
-                      const responseText = await minimalResponse.text();
-                      console.log('Response body:', responseText);
-                      
-                      try {
-                        const responseJson = JSON.parse(responseText);
-                        console.log('Parsed response:', responseJson);
-                      } catch (parseError) {
-                        console.log('Response is not valid JSON:', responseText);
-                      }
-                    } catch (e) {
-                      console.error('❌ Minimal tournaments test failed:', e);
-                    }
-                    
-                    // 4. Test if tournaments table exists by trying to create one
-                    try {
-                      console.log('Testing tournament creation with minimal data...');
-                      const testTournament = {
-                        name: 'Backend Test',
-                        category: 'General Knowledge',
-                        difficulty: 'easy',
-                        startDate: new Date(Date.now() + 300000).toISOString(), // 5 min from now
-                        endDate: new Date(Date.now() + 3900000).toISOString(),   // 65 min from now
-                        minimumPassingScore: 50
-                      };
-                      
-                      const createResponse = await fetch(`${getCurrentApiUrl()}/tournaments`, {
-                        method: 'POST',
-                        headers: {
-                          'Authorization': `Bearer ${token}`,
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(testTournament)
-                      });
-                      
-                      console.log('Create test response:', createResponse.status);
-                      const createText = await createResponse.text();
-                      console.log('Create response body:', createText);
-                      
-                    } catch (e) {
-                      console.error('❌ Create test failed:', e);
-                    }
-                    
-                    // 5. Check if there are alternative endpoints
-                    try {
-                      console.log('Testing for alternative tournament endpoints...');
-                      const endpoints = [
-                        '/tournament',  // singular
-                        '/tournaments/all',
-                        '/tournaments/list',
-                        '/admin/tournaments'
-                      ];
-                      
-                      for (const endpoint of endpoints) {
-                        try {
-                          const response = await fetch(`${getCurrentApiUrl()}${endpoint}`, {
-                            headers: { 'Authorization': `Bearer ${token}` }
-                          });
-                          console.log(`${endpoint}: ${response.status}`);
-                        } catch (e) {
-                          console.log(`${endpoint}: failed`);
-                        }
-                      }
-                    } catch (e) {
-                      console.error('❌ Alternative endpoints test failed:', e);
-                    }
-                    
-                    console.log('🔍 BACKEND TROUBLESHOOTING END');
-                    setDebugInfo(`Backend troubleshooting completed using ${getCurrentApiUrl()}. Check console for detailed analysis.`);
-                    
-                  } catch (error) {
-                    console.error('Troubleshooting failed:', error);
-                    setDebugInfo(`Troubleshooting failed: ${error.message}`);
-                  }
-                }}
-                className="btn-secondary text-xs px-2 py-1"
-                disabled={isLoading}
-              >
-                Troubleshoot Backend
-              </button>
-              <button
-                type="button"
-                onClick={testApiConnection}
-                className="btn-secondary text-xs px-2 py-1"
-                disabled={isLoading}
-              >
-                Test API
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    setDebugInfo('Testing tournament creation API...');
-                    const token = localStorage.getItem('token');
-                    const currentUrl = getCurrentApiUrl();
-                    
-                    // Test with minimal data
-                    const testData = {
-                      name: 'API Test Tournament',
-                      category: 'General Knowledge',
-                      difficulty: 'medium',
-                      startDate: new Date(Date.now() + 60000).toISOString(), // 1 minute from now
-                      endDate: new Date(Date.now() + 3660000).toISOString(), // 1 hour from now
-                      minimumPassingScore: 70
-                    };
-                    
-                    console.log('Testing tournament creation with:', testData);
-                    console.log('Using backend:', currentUrl);
-                    
-                    const response = await fetch(`${currentUrl}/tournaments`, {
-                      method: 'POST',
-                      headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                      },
-                      body: JSON.stringify(testData)
-                    });
-                    
-                    console.log('Tournament creation test response:', response.status);
-                    
-                    if (response.ok) {
-                      const data = await response.json();
-                      console.log('Tournament creation test success:', data);
-                      setDebugInfo(`Tournament creation test: SUCCESS - ${JSON.stringify(data)}`);
-                    } else {
-                      const errorText = await response.text();
-                      console.error('Tournament creation test error:', errorText);
-                      
-                      // Try switching backend if creation fails
-                      console.log('Creation failed, trying backend switch...');
-                      const switched = await switchBackend(true);
-                      
-                      if (switched) {
-                        const newUrl = getCurrentApiUrl();
-                        console.log(`Switched to: ${newUrl}, retrying creation...`);
-                        
-                        const retryResponse = await fetch(`${newUrl}/tournaments`, {
-                          method: 'POST',
-                          headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                          },
-                          body: JSON.stringify(testData)
-                        });
-                        
-                        if (retryResponse.ok) {
-                          const retryData = await retryResponse.json();
-                          console.log('Retry creation success:', retryData);
-                          setDebugInfo(`✅ Tournament creation working after backend switch to: ${newUrl}`);
-                        } else {
-                          const retryError = await retryResponse.text();
-                          setDebugInfo(`❌ Tournament creation still failing after switch: ${retryError}`);
-                        }
-                      } else {
-                        setDebugInfo(`Tournament creation test ERROR (${response.status}): ${errorText}`);
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Tournament creation test failed:', error);
-                    setDebugInfo(`Tournament creation test failed: ${error.message}`);
-                  }
-                }}
-                className="btn-secondary text-xs px-2 py-1"
-                disabled={isLoading}
-              >
-                Test Create
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    setDebugInfo('Testing tournaments API structure...');
-                    const result = await testAPI.debugTournaments();
-                    setDebugInfo(`✅ API Test Complete. Check console for detailed results.`);
-                  } catch (error) {
-                    console.error('API debug test failed:', error);
-                    setDebugInfo(`❌ API Debug failed: ${error.message}`);
-                  }
-                }}
-                className="btn-secondary text-xs px-2 py-1"
-                disabled={isLoading}
-              >
-                Debug API
-              </button>
-              <button
-                type="button"
                 onClick={() => navigate('/admin/tournaments')}
                 className="btn-secondary"
                 disabled={isLoading}
@@ -868,17 +453,11 @@ const CreateTournament = () => {
                 {isLoading ? (
                   <LoadingSpinner size="sm" />
                 ) : (
-                  <>
-                    <Trophy size={16} />
-                    <span>{isFormReady ? 'Create Tournament' : 'Loading...'}</span>
-                  </>
+                  'Create Tournament'
                 )}
               </button>
             </div>
           </form>
-
-          {/* Debug Info Component */}
-          <DebugInfo />
         </div>
 
         {/* Info Section */}

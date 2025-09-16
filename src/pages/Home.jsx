@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Trophy, Users, Clock, Award, Play, Shield, AlertCircle } from 'lucide-react';
-import { tournamentAPI, testAPI, checkApiHealth, warmupApi } from '../config/api';
+import { tournamentAPI, checkApiHealth, warmupApi } from '../config/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 
 const Home = () => {
@@ -15,7 +15,6 @@ const Home = () => {
   });
   const [recentTournaments, setRecentTournaments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [apiInfo, setApiInfo] = useState(null);
   const [error, setError] = useState('');
   const [isWarmingUp, setIsWarmingUp] = useState(false);
 
@@ -50,17 +49,8 @@ const Home = () => {
 
   const fetchHomeData = async () => {
     try {
-      // Fetch data in parallel but with error handling
-      const promises = [
-        testAPI.info().catch(err => ({ data: null })),
-        tournamentAPI.getAll().catch(err => ({ data: [] }))
-      ];
-
-      const [infoResponse, tournamentsResponse] = await Promise.all(promises);
-      
-      if (infoResponse.data) {
-        setApiInfo(infoResponse.data);
-      }
+      // Fetch tournaments data 
+      const tournamentsResponse = await tournamentAPI.getAll().catch(err => ({ data: [] }));
 
       // Ensure tournaments is always an array
       let tournaments = tournamentsResponse.data || [];
@@ -394,18 +384,6 @@ const Home = () => {
           </div>
         </div>
       </div>
-
-      {/* API Status Footer */}
-      {apiInfo && (
-        <div className="bg-gray-100 py-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-600">
-            <p>
-              Powered by {apiInfo.application} v{apiInfo.version} | 
-              Backend API: {apiInfo.profile === 'render' ? 'Production' : 'Development'}
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

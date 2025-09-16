@@ -7,10 +7,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Navigation from './components/Navigation';
 import ProtectedRoute from './components/ProtectedRoute';
-import ApiDiagnostics from './components/ApiDiagnostics';
-import AuthDiagnostics from './components/AuthDiagnostics';
 import ErrorBoundary from './components/ErrorBoundary';
-import BackendSwitcher from './components/BackendSwitcher';
 
 // Pages
 import Home from './pages/Home';
@@ -68,8 +65,6 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
-              <Route path="/diagnostics" element={<ApiDiagnostics />} />
-              <Route path="/auth-diagnostics" element={<AuthDiagnostics />} />
               
               {/* Protected routes - Any authenticated user */}
               <Route 
@@ -147,9 +142,6 @@ function App() {
             
             {/* Debug info in development */}
             {process.env.NODE_ENV === 'development' && <DebugInfo />}
-            
-            {/* Backend switcher in development */}
-            <BackendSwitcher />
           </div>
         </Router>
       </AuthProvider>

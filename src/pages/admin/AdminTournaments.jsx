@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { tournamentAPI, clearTournamentCache, testAPI } from '../../config/api';
+import { tournamentAPI, clearTournamentCache } from '../../config/api';
 import { Plus, Edit, Trash2, Eye, Trophy, Users, ThumbsUp, Calendar, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
@@ -341,22 +341,6 @@ const AdminTournaments = () => {
               >
                 <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
                 <span>Refresh</span>
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    console.log('🧪 Running API debug test...');
-                    const result = await testAPI.debugTournaments();
-                    console.log('🧪 Debug test completed:', result);
-                  } catch (error) {
-                    console.error('🧪 Debug test failed:', error);
-                  }
-                }}
-                className="btn-secondary inline-flex items-center space-x-2 text-xs"
-                disabled={isLoading}
-              >
-                <Eye size={16} />
-                <span>Debug API</span>
               </button>
               <Link
                 to="/admin/create-tournament"
