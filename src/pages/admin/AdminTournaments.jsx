@@ -1,7 +1,11 @@
+// ================================
+// 1. src/pages/admin/AdminTournaments.jsx
+// ================================
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { tournamentAPI, clearTournamentCache } from '../../config/api';
-import { Plus, Edit, Trash2, Eye, Trophy, Users, ThumbsUp, Calendar, AlertTriangle, CheckCircle } from 'lucide-react';
+import { tournamentAPI } from '../../config/api';
+import { Plus, Edit, Trash2, Eye, Trophy, Users, ThumbsUp, Calendar, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
 
@@ -11,13 +15,12 @@ const AdminTournaments = () => {
   const [error, setError] = useState('');
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, tournament: null });
   const [isDeleting, setIsDeleting] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchTournaments();
-  }, [refreshTrigger]);
+  }, []);
 
   const fetchTournaments = async () => {
     try {
@@ -29,17 +32,6 @@ const AdminTournaments = () => {
       const response = await tournamentAPI.getAll();
       console.log('Admin: Tournaments response:', response);
       
-      // Check if there's an error in the response
-      if (response.error) {
-        console.error('Admin: API returned error:', response.error);
-        setError(`Failed to load tournaments: ${response.error}`);
-        setTournaments([]);
-        return;
-      }
-      
-      console.log('Admin: Tournaments data:', response.data);
-      console.log('Admin: Number of tournaments:', Array.isArray(response.data) ? response.data.length : 'Not an array');
-      
       // Ensure tournaments is an array
       const tournamentsData = Array.isArray(response.data) 
         ? response.data 
@@ -49,28 +41,25 @@ const AdminTournaments = () => {
       setTournaments(tournamentsData);
     } catch (error) {
       console.error('Admin: Error fetching tournaments:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch tournaments';
-      setError(errorMessage);
+      let errorMessage = 'Failed to fetch tournaments';
       
-      // Set empty array as fallback
-      setTournaments([]);
-      
-      // If it's a network error, show a more helpful message
       if (!navigator.onLine) {
-        setError('You appear to be offline. Please check your internet connection.');
+        errorMessage = 'You appear to be offline. Please check your internet connection.';
       } else if (error.code === 'ECONNABORTED') {
-        setError('Request timed out. The server might be busy or unavailable.');
+        errorMessage = 'Request timed out. The server might be busy or unavailable.';
       } else if (error.response?.status === 401) {
-        setError('Your session has expired. Redirecting to login...');
-        // Redirect will be handled by API interceptor, but show message first
+        errorMessage = 'Your session has expired. Redirecting to login...';
         setTimeout(() => {
           window.location.href = '/login?message=Your session has expired. Please log in again.';
         }, 2000);
       } else if (error.response?.status === 403) {
-        setError('You do not have permission to access this resource. Please contact an administrator.');
-      } else if (error.response?.status === 404) {
-        setError('No tournaments found. Try creating your first tournament.');
+        errorMessage = 'You do not have permission to access this resource.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
       }
+      
+      setError(errorMessage);
+      setTournaments([]);
     } finally {
       setIsLoading(false);
     }
@@ -85,9 +74,12 @@ const AdminTournaments = () => {
       setTournaments(prev => prev.filter(t => t.id !== deleteModal.tournament.id));
       setDeleteModal({ isOpen: false, tournament: null });
       setSuccessMessage('Tournament deleted successfully');
+      
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
-      setError('Failed to delete tournament');
       console.error('Error deleting tournament:', error);
+      setError(error.response?.data?.message || 'Failed to delete tournament');
     } finally {
       setIsDeleting(false);
     }
@@ -115,19 +107,24 @@ const AdminTournaments = () => {
       const fetchLikes = async () => {
         try {
           const response = await tournamentAPI.getLikes(tournament.id);
-          setLikes(response.data);
+          setLikes(response.data || 0);
         } catch (error) {
           console.error('Error fetching likes:', error);
+          setLikes(0);
         }
       };
       fetchLikes();
     }, [tournament.id]);
 
+    const participantCount = Array.isArray(tournament.attempts) ? tournament.attempts.length : 0;
+
     return (
       <div className="card hover:shadow-lg transition-shadow">
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{tournament.name}</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+              {tournament.name || 'Unnamed Tournament'}
+            </h3>
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${status.color}`}>
               {status.label}
             </span>
@@ -155,11 +152,11 @@ const AdminTournaments = () => {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-500">Category:</span>
-              <p className="font-medium">{tournament.category}</p>
+              <p className="font-medium">{tournament.category || 'General'}</p>
             </div>
             <div>
               <span className="text-gray-500">Difficulty:</span>
-              <p className="font-medium capitalize">{tournament.difficulty}</p>
+              <p className="font-medium capitalize">{tournament.difficulty || 'medium'}</p>
             </div>
           </div>
 
@@ -167,7 +164,7 @@ const AdminTournaments = () => {
             <div className="flex items-center space-x-2 text-gray-600">
               <Calendar size={16} />
               <span>
-                {new Date(tournament.startDate).toLocaleDateString()} - {new Date(tournament.endDate).toLocaleDateString()}
+                {tournament.startDate ? new Date(tournament.startDate).toLocaleDateString() : 'TBD'} - {tournament.endDate ? new Date(tournament.endDate).toLocaleDateString() : 'TBD'}
               </span>
             </div>
           </div>
@@ -176,7 +173,7 @@ const AdminTournaments = () => {
             <div className="text-center">
               <div className="flex items-center justify-center space-x-1">
                 <Trophy className="text-amber-500" size={16} />
-                <span className="text-sm font-medium">{tournament.minimumPassingScore}%</span>
+                <span className="text-sm font-medium">{tournament.minimumPassingScore || 70}%</span>
               </div>
               <p className="text-xs text-gray-500">Pass Score</p>
             </div>
@@ -184,7 +181,7 @@ const AdminTournaments = () => {
             <div className="text-center">
               <div className="flex items-center justify-center space-x-1">
                 <Users className="text-blue-500" size={16} />
-                <span className="text-sm font-medium">{tournament.attempts?.length || 0}</span>
+                <span className="text-sm font-medium">{participantCount}</span>
               </div>
               <p className="text-xs text-gray-500">Participants</p>
             </div>
@@ -201,10 +198,15 @@ const AdminTournaments = () => {
           <div className="pt-3 border-t border-gray-100">
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-500">
-                Created by: <span className="font-medium">{tournament.creator?.firstName} {tournament.creator?.lastName}</span>
+                Created by: <span className="font-medium">
+                  {tournament.creator?.firstName || 'Unknown'} {tournament.creator?.lastName || 'Creator'}
+                </span>
               </span>
               <button
-                onClick={() => {/* Navigate to tournament details */}}
+                onClick={() => {
+                  // Navigate to tournament details or show more info
+                  console.log('View tournament details:', tournament.id);
+                }}
                 className="text-primary-600 hover:text-primary-800 inline-flex items-center space-x-1"
               >
                 <Eye size={16} />
@@ -217,42 +219,12 @@ const AdminTournaments = () => {
     );
   };
 
-  // Function to manually refresh tournaments
-  const refreshTournaments = () => {
-    console.log('Manually refreshing tournaments...');
-    clearTournamentCache(); // Clear cache before fetching
-    setRefreshTrigger(prev => prev + 1);
-  };
-
-  // Refresh when component becomes visible (e.g., when navigating back)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('Page became visible, refreshing tournaments...');
-        refreshTournaments();
-      }
-    };
-
-    const handleFocus = () => {
-      console.log('Window focused, refreshing tournaments...');
-      refreshTournaments();
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []);
-
-  // Check for success message from navigation
+  // Check for success message from URL params
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const success = urlParams.get('success');
     if (success) {
-      setSuccessMessage(success);
+      setSuccessMessage(decodeURIComponent(success));
       // Clear the URL parameter
       window.history.replaceState({}, '', window.location.pathname);
       // Auto-hide success message after 5 seconds
@@ -280,14 +252,12 @@ const AdminTournaments = () => {
             </div>
             <div className="flex items-center space-x-3">
               <button
-                onClick={refreshTournaments}
+                onClick={fetchTournaments}
                 disabled={isLoading}
                 className="btn-secondary inline-flex items-center space-x-2 disabled:opacity-50"
                 title="Refresh tournaments list"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                <RefreshCw className="w-4 h-4" />
                 <span>Refresh</span>
               </button>
               <Link
@@ -378,7 +348,7 @@ const AdminTournaments = () => {
               </div>
               <div className="ml-4">
                 <p className="text-2xl font-bold text-gray-900">
-                  {tournaments.reduce((sum, t) => sum + (t.attempts?.length || 0), 0)}
+                  {tournaments.reduce((sum, t) => sum + (Array.isArray(t.attempts) ? t.attempts.length : 0), 0)}
                 </p>
                 <p className="text-gray-600">Total Participants</p>
               </div>
@@ -431,7 +401,7 @@ const AdminTournaments = () => {
                 <div className="space-y-1 text-sm text-gray-600">
                   <p><span className="font-medium">Name:</span> {deleteModal.tournament.name}</p>
                   <p><span className="font-medium">Category:</span> {deleteModal.tournament.category}</p>
-                  <p><span className="font-medium">Participants:</span> {deleteModal.tournament.attempts?.length || 0}</p>
+                  <p><span className="font-medium">Participants:</span> {Array.isArray(deleteModal.tournament.attempts) ? deleteModal.tournament.attempts.length : 0}</p>
                   <p><span className="font-medium">Status:</span> {getTournamentStatus(deleteModal.tournament).label}</p>
                 </div>
               </div>
