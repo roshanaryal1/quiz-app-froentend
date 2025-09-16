@@ -8,6 +8,8 @@ import { tournamentAPI, clearTournamentCache } from '../../config/api';
 import { Plus, Edit, Trash2, Eye, Trophy, Users, ThumbsUp, Calendar, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
+import DatabaseStatus from './DatabaseStatus';
+import TournamentDataManager from '../../components/TournamentDataManager';
 
 const AdminTournaments = () => {
   const [tournaments, setTournaments] = useState([]);
@@ -140,6 +142,16 @@ const AdminTournaments = () => {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // Import tournaments from backup
+  const handleImportTournaments = (importedTournaments) => {
+    console.log('📥 Importing tournaments:', importedTournaments);
+    setTournaments(importedTournaments);
+    
+    // Optionally, try to sync with backend
+    // Note: This is a temporary solution until proper database is set up
+    console.log('⚠️ Tournaments imported locally - they will not persist after server restart');
   };
 
   const getTournamentStatus = (tournament) => {
@@ -351,6 +363,19 @@ const AdminTournaments = () => {
               </Link>
             </div>
           </div>
+        </div>
+
+        {/* Database Status */}
+        <div className="mb-8">
+          <DatabaseStatus />
+        </div>
+
+        {/* Tournament Data Manager */}
+        <div className="mb-8">
+          <TournamentDataManager 
+            tournaments={tournaments}
+            onImportTournaments={handleImportTournaments}
+          />
         </div>
 
         {/* Success Message */}
