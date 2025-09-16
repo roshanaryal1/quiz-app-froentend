@@ -1,7 +1,7 @@
-// src/pages/admin/CreateTournament.jsx
+// src/pages/admin/CreateTournament.jsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { tournamentAPI } from '../../config/api';
+import { tournamentAPI, testAPI } from '../../config/api';
 import { Calendar, Trophy, Tag, Target, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -24,16 +24,31 @@ const CreateTournament = () => {
   // Add error boundary to catch React errors
   const [hasError, setHasError] = useState(false);
 
-  // Fetch categories when component mounts
-  React.useEffect(() => {
+  // Fetch categories when component mounts - FIXED API CALL
+  useEffect(() => {
     const fetchCategories = async () => {
       try {
         console.log('Fetching categories from API...');
         
-        const response = await tournamentAPI.getCategories();
+        // FIXED: Use testAPI.categories() instead of tournamentAPI.getCategories()
+        const response = await testAPI.categories();
         console.log('Categories response:', response);
         
-        setAvailableCategories(response.data);
+        if (response.data && Array.isArray(response.data)) {
+          setAvailableCategories(response.data);
+        } else {
+          // Fallback categories if API response is not as expected
+          setAvailableCategories([
+            'General Knowledge',
+            'Science & Nature',
+            'Sports',
+            'History',
+            'Entertainment',
+            'Geography',
+            'Art',
+            'Politics'
+          ]);
+        }
       } catch (error) {
         console.error('Error fetching categories:', error);
         
@@ -94,7 +109,7 @@ const CreateTournament = () => {
         const startDate = new Date(formData.startDate);
         const endDate = new Date(formData.endDate);
         const now = new Date();
-        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes from now
+        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
 
         console.log('Date validation:', { startDate, endDate, now, fiveMinutesFromNow });
 
