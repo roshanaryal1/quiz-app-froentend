@@ -11,7 +11,7 @@ const getApiBaseUrl = () => {
   // 2. Check if we're in development mode
   if (import.meta.env.DEV) {
     // Development mode - use local backend
-    return 'http://localhost:8080/api';
+    return 'http://localhost:8082/api';
   }
   
   // 3. Production mode - use deployed backend
@@ -35,7 +35,7 @@ let currentApiUrl = API_BASE_URL;
 
 // Backend health check
 export const detectBackend = async () => {
-  const localUrl = 'http://localhost:8080/api';
+  const localUrl = 'http://localhost:8082/api';
   const deployedUrl = 'https://quiz-tournament-api.onrender.com/api';
   
   const testEndpoint = async (url) => {
