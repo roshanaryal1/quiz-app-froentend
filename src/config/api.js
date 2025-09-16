@@ -1,4 +1,3 @@
-// src/config/api.js - Fixed version for better backend detection
 import axios from 'axios';
 
 // API Configuration with improved backend detection
@@ -15,7 +14,7 @@ const getApiBaseUrl = () => {
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     // Local development - try local backend first
     console.log('🛠️ Local development detected');
-    return 'http://localhost:8080/api';
+    return 'http://localhost:8082/api';
   } else if (hostname.includes('vercel.app') || hostname.includes('netlify.app')) {
     // Deployed frontend - use deployed backend
     console.log('🚀 Production deployment detected');
@@ -29,6 +28,23 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 console.log(`🎯 Final API Base URL: ${API_BASE_URL}`);
+
+// Function to get current API URL
+export const getCurrentApiUrl = () => {
+  return API_BASE_URL;
+};
+
+// Initialize API (for compatibility)
+export const initializeApi = async () => {
+  console.log('🚀 Initializing API...');
+  const isHealthy = await checkApiHealth();
+  if (isHealthy) {
+    console.log('✅ API initialized successfully');
+  } else {
+    console.warn('⚠️ API initialization failed, but continuing...');
+  }
+  return isHealthy;
+};
 
 // Create axios instance with improved configuration
 const api = axios.create({
@@ -109,6 +125,46 @@ export const checkBackendHealth = async (retries = 3) => {
     }
   }
   return false;
+};
+
+// API health check (alias for checkBackendHealth for compatibility)
+export const checkApiHealth = async () => {
+  try {
+    console.log('🏥 Checking API health...');
+    const response = await api.get('/test/health');
+    console.log('✅ API is healthy:', response.data);
+    return true;
+  } catch (error) {
+    console.warn('⚠️ API health check failed:', error.message);
+    return false;
+  }
+};
+
+// Warm up API to prevent cold starts
+export const warmupApi = async () => {
+  try {
+    console.log('🔥 Warming up API...');
+    const response = await api.get('/test/health');
+    console.log('✅ API warmed up successfully');
+    return true;
+  } catch (error) {
+    console.warn('⚠️ API warmup failed:', error.message);
+    return false;
+  }
+};
+
+// Tournament cache management
+let tournamentCache = null;
+let cacheTimestamp = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+export const clearTournamentCache = () => {
+  console.log('🗑️ Clearing tournament cache');
+  tournamentCache = null;
+  cacheTimestamp = null;
+  // Also clear from localStorage if being used
+  localStorage.removeItem('tournament_cache');
+  localStorage.removeItem('tournament_cache_timestamp');
 };
 
 // Authentication API calls
