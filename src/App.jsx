@@ -1,9 +1,14 @@
+// ================================
+// 3. src/App.jsx
+// ================================
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Navigation from './components/Navigation';
 import ProtectedRoute from './components/ProtectedRoute';
 import ApiDiagnostics from './components/ApiDiagnostics';
+import AuthDiagnostics from './components/AuthDiagnostics';
 import ErrorBoundary from './components/ErrorBoundary';
 
 // Pages
@@ -29,6 +34,23 @@ import OngoingTournaments from './pages/player/OngoingTournaments';
 import NotFound from './pages/NotFound';
 import Unauthorized from './pages/Unauthorized';
 
+// Debug component for development
+const DebugInfo = () => {
+  const token = localStorage.getItem('token');
+  const user = localStorage.getItem('user');
+  
+  if (process.env.NODE_ENV !== 'development') return null;
+  
+  return (
+    <div className="fixed bottom-0 right-0 bg-black text-white text-xs p-2 z-50 max-w-xs">
+      <div>Token: {token ? 'Present' : 'Missing'}</div>
+      <div>User: {user ? JSON.parse(user).username : 'None'}</div>
+      <div>Role: {user ? JSON.parse(user).role : 'None'}</div>
+      <div>URL: {window.location.pathname}</div>
+    </div>
+  );
+};
+
 function App() {
   return (
     <ErrorBoundary>
@@ -46,6 +68,7 @@ function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               <Route path="/diagnostics" element={<ApiDiagnostics />} />
+              <Route path="/auth-diagnostics" element={<AuthDiagnostics />} />
               
               {/* Protected routes - Any authenticated user */}
               <Route 
@@ -120,6 +143,9 @@ function App() {
               {/* 404 route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            
+            {/* Debug info in development */}
+            {process.env.NODE_ENV === 'development' && <DebugInfo />}
           </div>
         </Router>
       </AuthProvider>
