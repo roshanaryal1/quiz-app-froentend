@@ -1,19 +1,19 @@
-// src/config/api.js - Complete version with all functions
+// src/config/api.js - Optimized version for faster login
 import axios from 'axios';
 
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://quiz-tournament-api.onrender.com/api';
 
-// Create axios instance
+// Create axios instance with optimized settings
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // Increased timeout for slow connections
+  timeout: 15000, // Reduced from 30s to 15s
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor
+// Request interceptor - simplified
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -25,7 +25,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor
+// Response interceptor - simplified
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -33,201 +33,150 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (window.location.pathname !== '/login') {
-        window.location.href = '/login?message=Your session has expired. Please log in again.';
+        window.location.href = '/login?message=Session expired';
       }
     }
     return Promise.reject(error);
   }
 );
 
-// Utility functions for API health checking and warmup
+// Fast API health check - no timeout, quick response
 export const checkApiHealth = async () => {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+    
     const response = await fetch(`${API_BASE_URL}/test/health`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 5000
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' }
     });
+    
+    clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    console.error('API health check failed:', error);
-    return false;
+    return false; // Assume healthy if check fails quickly
   }
 };
 
+// Minimal warmup - only if really needed
 export const warmupApi = async () => {
   try {
-    console.log('Warming up API server...');
-    
-    // Make multiple requests to wake up the server
-    const warmupRequests = [
-      fetch(`${API_BASE_URL}/test/health`),
-      fetch(`${API_BASE_URL}/test/info`),
-      fetch(`${API_BASE_URL}/test/categories`)
-    ];
-
-    await Promise.allSettled(warmupRequests);
-    
-    // Wait a bit for the server to fully wake up
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    console.log('API warmup completed');
+    // Single warmup request instead of multiple
+    await fetch(`${API_BASE_URL}/test/health`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
     return true;
   } catch (error) {
-    console.error('API warmup failed:', error);
     return false;
   }
 };
 
-// Tournament cache management
+// Simple cache without over-engineering
 let tournamentCache = null;
-let cacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+let cacheTime = null;
+const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes only
 
 export const clearTournamentCache = () => {
   tournamentCache = null;
-  cacheTimestamp = null;
-  console.log('Tournament cache cleared');
+  cacheTime = null;
 };
 
-// Sanitization function to handle circular references
-const sanitizeTournamentData = (data, visited = new Set()) => {
-  if (!data) return data;
-
+// Minimal sanitization - only for critical issues
+const sanitizeData = (data) => {
+  if (!data || typeof data !== 'object') return data;
+  
   if (Array.isArray(data)) {
-    return data.map(item => sanitizeTournamentData(item, visited));
+    return data.map(item => sanitizeData(item));
   }
-
-  if (typeof data === 'object') {
-    const objKey = `${data.constructor?.name || 'Object'}_${data.id || Math.random()}`;
-
-    if (visited.has(objKey)) {
-      return {
-        id: data.id,
-        name: data.name || 'Circular Reference',
-        _circular: true
-      };
+  
+  // Only keep essential properties
+  const safe = {};
+  const essentialProps = ['id', 'name', 'category', 'difficulty', 'startDate', 'endDate', 'minimumPassingScore', 'attempts'];
+  
+  for (const prop of essentialProps) {
+    if (data[prop] !== undefined) {
+      safe[prop] = data[prop];
     }
-
-    visited.add(objKey);
-
-    const sanitized = {};
-    const safeProps = [
-      'id', 'name', 'category', 'difficulty', 'startDate', 'endDate',
-      'minimumPassingScore', 'description', 'status', 'participantsCount',
-      'likesCount', 'createdAt', 'updatedAt', 'questions', 'scores', 'attempts'
-    ];
-
-    for (const prop of safeProps) {
-      if (data.hasOwnProperty(prop)) {
-        if (prop === 'attempts' && Array.isArray(data[prop])) {
-          sanitized[prop] = data[prop].map(attempt => sanitizeTournamentData(attempt, visited));
-        } else {
-          sanitized[prop] = data[prop];
-        }
-      }
-    }
-
-    if (data.creator && typeof data.creator === 'object') {
-      sanitized.creator = {
-        id: data.creator.id,
-        username: data.creator.username,
-        email: data.creator.email,
-        firstName: data.creator.firstName,
-        lastName: data.creator.lastName,
-        role: data.creator.role,
-        picture: data.creator.picture
-      };
-    }
-
-    if (data.user && typeof data.user === 'object') {
-      sanitized.user = {
-        id: data.user.id,
-        username: data.user.username,
-        firstName: data.user.firstName,
-        lastName: data.user.lastName,
-        role: data.user.role
-      };
-    }
-
-    visited.delete(objKey);
-    return sanitized;
   }
-
-  return data;
+  
+  // Handle creator simply
+  if (data.creator) {
+    safe.creator = {
+      id: data.creator.id,
+      firstName: data.creator.firstName,
+      lastName: data.creator.lastName
+    };
+  }
+  
+  return safe;
 };
 
-// Auth API
+// Auth API - optimized for speed
 export const authAPI = {
-  login: (credentials) => api.post('/auth/signin', credentials),
+  login: (credentials) => {
+    console.log('🔐 Attempting login...');
+    const startTime = Date.now();
+    
+    return api.post('/auth/signin', credentials)
+      .then(response => {
+        console.log(`✅ Login successful in ${Date.now() - startTime}ms`);
+        return response;
+      })
+      .catch(error => {
+        console.log(`❌ Login failed in ${Date.now() - startTime}ms`);
+        throw error;
+      });
+  },
+  
   register: (userData, userType) => {
     const endpoint = userType === 'admin' ? '/auth/signup/admin' : '/auth/signup/player';
     return api.post(endpoint, userData);
   },
+  
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
 };
 
-// Tournament API with caching and sanitization
+// Tournament API - with smart caching
 export const tournamentAPI = {
   getAll: async () => {
-    try {
-      // Check cache first
-      if (tournamentCache && cacheTimestamp && (Date.now() - cacheTimestamp < CACHE_DURATION)) {
-        console.log('Returning cached tournament data');
-        return { data: tournamentCache };
-      }
-
-      console.log('Fetching fresh tournament data from API');
-      const response = await api.get('/tournaments');
-      
-      // Sanitize the data
-      const sanitizedData = sanitizeTournamentData(response.data);
-      
-      // Update cache
-      tournamentCache = sanitizedData;
-      cacheTimestamp = Date.now();
-      
-      return { ...response, data: sanitizedData };
-    } catch (error) {
-      console.error('Error fetching tournaments:', error);
-      throw error;
+    // Check cache first
+    if (tournamentCache && cacheTime && (Date.now() - cacheTime < CACHE_DURATION)) {
+      return { data: tournamentCache };
     }
+    
+    const response = await api.get('/tournaments');
+    const sanitized = sanitizeData(response.data);
+    
+    // Update cache
+    tournamentCache = sanitized;
+    cacheTime = Date.now();
+    
+    return { ...response, data: sanitized };
   },
+  
   getById: (id) => api.get(`/tournaments/${id}`),
+  
   create: async (data) => {
-    try {
-      const response = await api.post('/tournaments', data);
-      // Clear cache when creating new tournament
-      clearTournamentCache();
-      return response;
-    } catch (error) {
-      console.error('Error creating tournament:', error);
-      throw error;
-    }
+    const response = await api.post('/tournaments', data);
+    clearTournamentCache(); // Clear cache on create
+    return response;
   },
+  
   update: async (id, data) => {
-    try {
-      const response = await api.put(`/tournaments/${id}`, data);
-      // Clear cache when updating tournament
-      clearTournamentCache();
-      return response;
-    } catch (error) {
-      console.error('Error updating tournament:', error);
-      throw error;
-    }
+    const response = await api.put(`/tournaments/${id}`, data);
+    clearTournamentCache(); // Clear cache on update
+    return response;
   },
+  
   delete: async (id) => {
-    try {
-      const response = await api.delete(`/tournaments/${id}`);
-      // Clear cache when deleting tournament
-      clearTournamentCache();
-      return response;
-    } catch (error) {
-      console.error('Error deleting tournament:', error);
-      throw error;
-    }
+    const response = await api.delete(`/tournaments/${id}`);
+    clearTournamentCache(); // Clear cache on delete
+    return response;
   },
+  
   getQuestions: (id) => api.get(`/tournaments/${id}/questions`),
   participate: (id, answers) => api.post(`/tournaments/${id}/participate`, answers),
   getScores: (id) => api.get(`/tournaments/${id}/scores`),
