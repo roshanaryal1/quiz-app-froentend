@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ApiDiagnostics from './components/ApiDiagnostics';
 import AuthDiagnostics from './components/AuthDiagnostics';
 import ErrorBoundary from './components/ErrorBoundary';
+import BackendSwitcher from './components/BackendSwitcher';
 
 // Pages
 import Home from './pages/Home';
@@ -146,6 +147,9 @@ function App() {
             
             {/* Debug info in development */}
             {process.env.NODE_ENV === 'development' && <DebugInfo />}
+            
+            {/* Backend switcher in development */}
+            <BackendSwitcher />
           </div>
         </Router>
       </AuthProvider>

@@ -1,8 +1,85 @@
 // src/config/api.js - Optimized version for faster login
 import axios from 'axios';
 
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://quiz-tournament-api.onrender.com/api';
+// API Configuration - Handles both local and deployed backends
+const getApiBaseUrl = () => {
+  // 1. Check environment variable first (manual override)
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // 2. Check if we're in development mode
+  if (import.meta.env.DEV) {
+    // Development mode - use local backend
+    return 'http://localhost:8080/api';
+  }
+  
+  // 3. Production mode - use deployed backend
+  return 'https://quiz-tournament-api.onrender.com/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Log which API URL is being used
+console.log(`🌐 API Configuration: Using ${API_BASE_URL}`);
+
+// Environment detection utility
+export const isLocalEnvironment = () => {
+  const hostname = window.location.hostname;
+  return hostname === 'localhost' || hostname === '127.0.0.1';
+};
+
+// Backend health check with fallback
+export const detectBackend = async () => {
+  const localUrl = 'http://localhost:8080/api';
+  const deployedUrl = 'https://quiz-tournament-api.onrender.com/api';
+  
+  const testEndpoint = async (url) => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      
+      const response = await fetch(`${url}/test/health`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      clearTimeout(timeoutId);
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  };
+  
+  // In development, try local first
+  if (import.meta.env.DEV) {
+    console.log('🔍 Development mode: Checking local backend...');
+    const localWorks = await testEndpoint(localUrl);
+    if (localWorks) {
+      console.log('✅ Local backend is available');
+      return localUrl;
+    } else {
+      console.log('⚠️ Local backend unavailable, trying deployed...');
+      const deployedWorks = await testEndpoint(deployedUrl);
+      if (deployedWorks) {
+        console.log('✅ Deployed backend is available');
+        return deployedUrl;
+      }
+    }
+  } else {
+    // In production, use deployed backend
+    console.log('🚀 Production mode: Using deployed backend...');
+    const deployedWorks = await testEndpoint(deployedUrl);
+    if (deployedWorks) {
+      console.log('✅ Deployed backend is available');
+      return deployedUrl;
+    }
+  }
+  
+  console.log('❌ No backend available, using default');
+  return deployedUrl; // Fallback to deployed
+};
 
 // Create axios instance with optimized settings
 const api = axios.create({
@@ -13,29 +90,82 @@ const api = axios.create({
   },
 });
 
-// Request interceptor - simplified
+// Dynamic API instance that can switch backends
+let currentApiUrl = API_BASE_URL;
+
+export const switchBackend = async (forceDetect = false) => {
+  if (forceDetect) {
+    const detectedUrl = await detectBackend();
+    if (detectedUrl !== currentApiUrl) {
+      currentApiUrl = detectedUrl;
+      api.defaults.baseURL = currentApiUrl;
+      console.log(`🔄 Switched to backend: ${currentApiUrl}`);
+      clearTournamentCache(); // Clear cache when switching
+      return true;
+    }
+  }
+  return false;
+};
+
+// Initialize with backend detection
+export const initializeApi = async () => {
+  try {
+    const detectedUrl = await detectBackend();
+    if (detectedUrl !== currentApiUrl) {
+      currentApiUrl = detectedUrl;
+      api.defaults.baseURL = currentApiUrl;
+      console.log(`🚀 Initialized with backend: ${currentApiUrl}`);
+    }
+  } catch (error) {
+    console.warn('⚠️ Backend detection failed, using default:', currentApiUrl);
+  }
+};
+
+export const getCurrentApiUrl = () => currentApiUrl;
+
+// Request interceptor - simplified with backend switching
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Ensure we're using the current API URL
+    config.baseURL = currentApiUrl;
+    
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - simplified
+// Response interceptor - with backend switching on errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    // Handle authentication errors
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       if (window.location.pathname !== '/login') {
         window.location.href = '/login?message=Session expired';
       }
+      return Promise.reject(error);
     }
+    
+    // Handle 500/503 errors by trying to switch backend
+    if (error.response?.status >= 500 || error.code === 'NETWORK_ERROR') {
+      console.log('🔄 Server error detected, attempting backend switch...');
+      const switched = await switchBackend(true);
+      
+      if (switched && error.config && !error.config._retry) {
+        error.config._retry = true;
+        error.config.baseURL = currentApiUrl;
+        console.log('🔄 Retrying request with new backend...');
+        return api.request(error.config);
+      }
+    }
+    
     return Promise.reject(error);
   }
 );
@@ -46,7 +176,7 @@ export const checkApiHealth = async () => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
     
-    const response = await fetch(`${API_BASE_URL}/test/health`, {
+    const response = await fetch(`${currentApiUrl}/test/health`, {
       method: 'GET',
       signal: controller.signal,
       headers: { 'Content-Type': 'application/json' }
@@ -55,21 +185,43 @@ export const checkApiHealth = async () => {
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
-    return false; // Assume healthy if check fails quickly
+    // Try switching backend if health check fails
+    console.log('🔄 Health check failed, trying to switch backend...');
+    const switched = await switchBackend(true);
+    if (switched) {
+      try {
+        const response = await fetch(`${currentApiUrl}/test/health`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        return response.ok;
+      } catch (retryError) {
+        return false;
+      }
+    }
+    return false;
   }
 };
 
 // Minimal warmup - only if really needed
 export const warmupApi = async () => {
   try {
-    // Single warmup request instead of multiple
-    await fetch(`${API_BASE_URL}/test/health`, {
+    // Try current backend first
+    const response = await fetch(`${currentApiUrl}/test/health`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
     });
-    return true;
+    
+    if (response.ok) {
+      return true;
+    }
+    
+    // If failed, try switching backend
+    const switched = await switchBackend(true);
+    return switched;
   } catch (error) {
-    return false;
+    const switched = await switchBackend(true);
+    return switched;
   }
 };
 

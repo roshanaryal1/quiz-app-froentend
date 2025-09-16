@@ -1,7 +1,7 @@
 // src/pages/admin/CreateTournament.jsx - Debug version
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { tournamentAPI, testAPI, clearTournamentCache } from '../../config/api';
+import { tournamentAPI, testAPI, clearTournamentCache, getCurrentApiUrl, switchBackend, checkApiHealth } from '../../config/api';
 import { Calendar, Trophy, Tag, Target, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -287,20 +287,22 @@ const CreateTournament = () => {
     try {
       setDebugInfo('Testing API connection...');
       const authStatus = checkAuthStatus();
+      const currentUrl = getCurrentApiUrl();
       
       console.log('Auth status:', authStatus);
+      console.log('Current API URL:', currentUrl);
       
       // Test API health
-      const healthResponse = await fetch('https://quiz-tournament-api.onrender.com/api/test/health');
+      const healthResponse = await fetch(`${currentUrl}/test/health`);
       const healthData = await healthResponse.json();
       
       console.log('API Health:', healthData);
-      setDebugInfo(`API Health: ${healthData.status || 'Unknown'}`);
+      setDebugInfo(`API Health: ${healthData.status || 'Unknown'} - ${currentUrl}`);
       
       // Test authentication
       if (authStatus.hasToken) {
         const token = localStorage.getItem('token');
-        const authResponse = await fetch('https://quiz-tournament-api.onrender.com/api/users/me', {
+        const authResponse = await fetch(`${currentUrl}/users/me`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -310,11 +312,11 @@ const CreateTournament = () => {
         if (authResponse.ok) {
           const userData = await authResponse.json();
           console.log('Authenticated user:', userData);
-          setDebugInfo(`Authenticated as: ${userData.username} (${userData.role})`);
+          setDebugInfo(`Authenticated as: ${userData.username} (${userData.role}) - ${currentUrl}`);
           
           // Test tournaments API specifically
           console.log('Testing tournaments API...');
-          const tournamentsResponse = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+          const tournamentsResponse = await fetch(`${currentUrl}/tournaments`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'
@@ -332,38 +334,32 @@ const CreateTournament = () => {
             const errorText = await tournamentsResponse.text();
             console.error('Tournaments API error:', errorText);
             
-            // Try to test with a simpler endpoint first
-            console.log('Testing simpler API endpoints...');
+            // Try switching backend and retrying
+            console.log('Attempting backend switch...');
+            const switched = await switchBackend(true);
             
-            // Test without auth first
-            try {
-              const publicResponse = await fetch('https://quiz-tournament-api.onrender.com/api/test/info');
-              const publicData = await publicResponse.json();
-              console.log('Public API test:', publicData);
-            } catch (e) {
-              console.error('Public API test failed:', e);
-            }
-            
-            // Test if it's an auth issue by trying different headers
-            try {
-              const authTestResponse = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+            if (switched) {
+              const newUrl = getCurrentApiUrl();
+              console.log(`Switched to: ${newUrl}, retrying...`);
+              
+              const retryResponse = await fetch(`${newUrl}/tournaments`, {
                 headers: {
                   'Authorization': `Bearer ${token}`,
-                  'Accept': 'application/json',
-                  'Content-Type': 'application/json',
-                  'Cache-Control': 'no-cache'
+                  'Content-Type': 'application/json'
                 }
               });
-              console.log('Auth test response status:', authTestResponse.status);
-              if (!authTestResponse.ok) {
-                const authErrorText = await authTestResponse.text();
-                console.log('Auth test error:', authErrorText);
+              
+              if (retryResponse.ok) {
+                const retryData = await retryResponse.json();
+                console.log('Retry success:', retryData);
+                setDebugInfo(`✅ Tournaments API working after backend switch to: ${newUrl}`);
+              } else {
+                const retryError = await retryResponse.text();
+                setDebugInfo(`❌ Tournaments API still failing after switch: ${retryError}`);
               }
-            } catch (e) {
-              console.error('Auth test failed:', e);
+            } else {
+              setDebugInfo(`Tournaments API Error (${tournamentsResponse.status}): ${errorText}. No alternative backend available.`);
             }
-            
-            setDebugInfo(`Tournaments API Error (${tournamentsResponse.status}): ${errorText}. Check console for detailed debugging.`);
           }
         } else {
           console.error('Authentication failed:', authResponse.status, await authResponse.text());
@@ -384,9 +380,18 @@ const CreateTournament = () => {
 
   // Update form readiness in debug info
   useEffect(() => {
-    if (!isFormReady) {
-      setDebugInfo('Loading categories... Form not ready yet');
-    }
+    const updateStatus = async () => {
+      const currentUrl = getCurrentApiUrl();
+      const isHealthy = await checkApiHealth();
+      
+      if (!isFormReady) {
+        setDebugInfo('Loading categories... Form not ready yet');
+      } else {
+        setDebugInfo(`Using backend: ${currentUrl} (${isHealthy ? 'Healthy' : 'Unhealthy'})`);
+      }
+    };
+    
+    updateStatus();
   }, [isFormReady]);
 
   return (
@@ -592,15 +597,54 @@ const CreateTournament = () => {
                 type="button"
                 onClick={async () => {
                   try {
+                    setDebugInfo('Switching backend...');
+                    const switched = await switchBackend(true);
+                    const currentUrl = getCurrentApiUrl();
+                    
+                    if (switched) {
+                      setDebugInfo(`✅ Switched to: ${currentUrl}`);
+                    } else {
+                      setDebugInfo(`ℹ️ Already using optimal backend: ${currentUrl}`);
+                    }
+                  } catch (error) {
+                    setDebugInfo(`❌ Backend switch failed: ${error.message}`);
+                  }
+                }}
+                className="btn-secondary text-xs px-2 py-1"
+                disabled={isLoading}
+              >
+                Switch Backend
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
                     setDebugInfo('Testing backend health and troubleshooting...');
                     const token = localStorage.getItem('token');
+                    const currentUrl = getCurrentApiUrl();
                     
-                    console.log('🔍 BACKEND TROUBLESHOOTING START');
+                    console.log(`🔍 BACKEND TROUBLESHOOTING START - Using: ${currentUrl}`);
                     
-                    // 1. Test if it's a database connectivity issue
+                    // 1. Test current backend health
+                    try {
+                      console.log('Testing current backend health...');
+                      const isHealthy = await checkApiHealth();
+                      console.log(`Current backend (${currentUrl}) health: ${isHealthy ? '✅ Healthy' : '❌ Unhealthy'}`);
+                      
+                      if (!isHealthy) {
+                        console.log('🔄 Attempting backend switch...');
+                        const switched = await switchBackend(true);
+                        const newUrl = getCurrentApiUrl();
+                        console.log(`Backend switch result: ${switched ? `✅ Switched to ${newUrl}` : '❌ No better backend found'}`);
+                      }
+                    } catch (e) {
+                      console.error('❌ Health check failed:', e);
+                    }
+                    
+                    // 2. Test if it's a database connectivity issue
                     try {
                       console.log('Testing user endpoint (should work)...');
-                      const userResponse = await fetch('https://quiz-tournament-api.onrender.com/api/users/me', {
+                      const userResponse = await fetch(`${getCurrentApiUrl()}/users/me`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                       });
                       
@@ -613,10 +657,10 @@ const CreateTournament = () => {
                       console.error('❌ Users endpoint failed:', e);
                     }
                     
-                    // 2. Try accessing tournaments with minimal headers
+                    // 3. Try accessing tournaments with minimal headers
                     try {
                       console.log('Testing tournaments with minimal request...');
-                      const minimalResponse = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+                      const minimalResponse = await fetch(`${getCurrentApiUrl()}/tournaments`, {
                         method: 'GET',
                         headers: { 'Authorization': `Bearer ${token}` }
                       });
@@ -635,7 +679,7 @@ const CreateTournament = () => {
                       console.error('❌ Minimal tournaments test failed:', e);
                     }
                     
-                    // 3. Test if tournaments table exists by trying to create one
+                    // 4. Test if tournaments table exists by trying to create one
                     try {
                       console.log('Testing tournament creation with minimal data...');
                       const testTournament = {
@@ -647,7 +691,7 @@ const CreateTournament = () => {
                         minimumPassingScore: 50
                       };
                       
-                      const createResponse = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+                      const createResponse = await fetch(`${getCurrentApiUrl()}/tournaments`, {
                         method: 'POST',
                         headers: {
                           'Authorization': `Bearer ${token}`,
@@ -664,19 +708,19 @@ const CreateTournament = () => {
                       console.error('❌ Create test failed:', e);
                     }
                     
-                    // 4. Check if there are alternative endpoints
+                    // 5. Check if there are alternative endpoints
                     try {
                       console.log('Testing for alternative tournament endpoints...');
                       const endpoints = [
-                        '/api/tournament',  // singular
-                        '/api/tournaments/all',
-                        '/api/tournaments/list',
-                        '/api/admin/tournaments'
+                        '/tournament',  // singular
+                        '/tournaments/all',
+                        '/tournaments/list',
+                        '/admin/tournaments'
                       ];
                       
                       for (const endpoint of endpoints) {
                         try {
-                          const response = await fetch(`https://quiz-tournament-api.onrender.com${endpoint}`, {
+                          const response = await fetch(`${getCurrentApiUrl()}${endpoint}`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                           });
                           console.log(`${endpoint}: ${response.status}`);
@@ -689,7 +733,7 @@ const CreateTournament = () => {
                     }
                     
                     console.log('🔍 BACKEND TROUBLESHOOTING END');
-                    setDebugInfo('Backend troubleshooting completed. Check console for detailed analysis.');
+                    setDebugInfo(`Backend troubleshooting completed using ${getCurrentApiUrl()}. Check console for detailed analysis.`);
                     
                   } catch (error) {
                     console.error('Troubleshooting failed:', error);
@@ -715,6 +759,7 @@ const CreateTournament = () => {
                   try {
                     setDebugInfo('Testing tournament creation API...');
                     const token = localStorage.getItem('token');
+                    const currentUrl = getCurrentApiUrl();
                     
                     // Test with minimal data
                     const testData = {
@@ -727,8 +772,9 @@ const CreateTournament = () => {
                     };
                     
                     console.log('Testing tournament creation with:', testData);
+                    console.log('Using backend:', currentUrl);
                     
-                    const response = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+                    const response = await fetch(`${currentUrl}/tournaments`, {
                       method: 'POST',
                       headers: {
                         'Authorization': `Bearer ${token}`,
@@ -746,7 +792,35 @@ const CreateTournament = () => {
                     } else {
                       const errorText = await response.text();
                       console.error('Tournament creation test error:', errorText);
-                      setDebugInfo(`Tournament creation test ERROR (${response.status}): ${errorText}`);
+                      
+                      // Try switching backend if creation fails
+                      console.log('Creation failed, trying backend switch...');
+                      const switched = await switchBackend(true);
+                      
+                      if (switched) {
+                        const newUrl = getCurrentApiUrl();
+                        console.log(`Switched to: ${newUrl}, retrying creation...`);
+                        
+                        const retryResponse = await fetch(`${newUrl}/tournaments`, {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                          },
+                          body: JSON.stringify(testData)
+                        });
+                        
+                        if (retryResponse.ok) {
+                          const retryData = await retryResponse.json();
+                          console.log('Retry creation success:', retryData);
+                          setDebugInfo(`✅ Tournament creation working after backend switch to: ${newUrl}`);
+                        } else {
+                          const retryError = await retryResponse.text();
+                          setDebugInfo(`❌ Tournament creation still failing after switch: ${retryError}`);
+                        }
+                      } else {
+                        setDebugInfo(`Tournament creation test ERROR (${response.status}): ${errorText}`);
+                      }
                     }
                   } catch (error) {
                     console.error('Tournament creation test failed:', error);
