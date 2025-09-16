@@ -1,3 +1,4 @@
+// src/pages/Login.jsx - Optimized for faster login
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -34,7 +35,7 @@ const Login = () => {
     };
   }, []);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated - but don't block render
   useEffect(() => {
     if (isAuthenticated) {
       navigate(from, { replace: true });
@@ -43,35 +44,51 @@ const Login = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (error) clearError();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!isOnline) {
-      return;
-    }
+    if (!isOnline) return;
+    if (!formData.usernameOrEmail.trim() || !formData.password.trim()) return;
     
-    if (!formData.usernameOrEmail.trim() || !formData.password.trim()) {
-      return;
-    }
+    console.log('🚀 Starting login process...');
+    const startTime = Date.now();
     
-    console.log('Submitting login form');
-    const result = await login(formData);
+    try {
+      const result = await login(formData);
+      
+      if (result.success) {
+        console.log(`✅ Login completed in ${Date.now() - startTime}ms`);
+        // Don't wait for navigation, do it immediately
+        navigate(from, { replace: true });
+      }
+    } catch (error) {
+      console.error(`❌ Login failed after ${Date.now() - startTime}ms:`, error);
+    }
+  };
+
+  // Quick login function for testing
+  const quickAdminLogin = async () => {
+    setFormData({
+      usernameOrEmail: 'admin',
+      password: 'op@1234'
+    });
+    
+    // Submit immediately
+    const result = await login({
+      usernameOrEmail: 'admin',
+      password: 'op@1234'
+    });
     
     if (result.success) {
-      console.log('Login successful, redirecting to:', from);
       navigate(from, { replace: true });
     }
   };
 
   const getErrorDisplay = () => {
-    // Show message from URL parameter first
     if (message) {
       return (
         <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md flex items-center space-x-2">
@@ -85,7 +102,7 @@ const Login = () => {
       return (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center space-x-2">
           <WifiOff size={20} />
-          <span>No internet connection. Please check your network and try again.</span>
+          <span>No internet connection</span>
         </div>
       );
     }
@@ -94,14 +111,7 @@ const Login = () => {
       return (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md flex items-center space-x-2">
           <AlertCircle size={20} />
-          <div>
-            <p>{error}</p>
-            {error.includes('connect') && (
-              <p className="text-sm mt-1">
-                The server might be starting up. Please wait a moment and try again.
-              </p>
-            )}
-          </div>
+          <span>{error}</span>
         </div>
       );
     }
@@ -129,12 +139,6 @@ const Login = () => {
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {message && (
-            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
-              {message}
-            </div>
-          )}
-          
           {getErrorDisplay()}
           
           <div className="space-y-4">
@@ -156,6 +160,7 @@ const Login = () => {
                     (!isOnline || isLoading) ? 'bg-gray-100 cursor-not-allowed' : ''
                   }`}
                   placeholder="Enter your username or email"
+                  autoComplete="username"
                 />
               </div>
             </div>
@@ -178,6 +183,7 @@ const Login = () => {
                     (!isOnline || isLoading) ? 'bg-gray-100 cursor-not-allowed' : ''
                   }`}
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -196,7 +202,7 @@ const Login = () => {
               to="/forgot-password"
               className="text-sm text-primary-600 hover:text-primary-500"
             >
-              Forgot your password?
+              Forgot password?
             </Link>
           </div>
 
@@ -206,11 +212,12 @@ const Login = () => {
             className="w-full btn-primary flex justify-center items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <LoadingSpinner size="sm" />
-            ) : (
               <>
-                <span>Sign In</span>
+                <LoadingSpinner size="sm" />
+                <span>Signing In...</span>
               </>
+            ) : (
+              <span>Sign In</span>
             )}
           </button>
 
@@ -223,13 +230,19 @@ const Login = () => {
             </span>
           </div>
 
+          {/* Quick Login for Testing */}
           <div className="mt-6 border-t pt-6">
-            <div className="text-center text-sm text-gray-500">
-              <p>Default Admin Credentials (for testing):</p>
-              <p className="font-mono bg-gray-100 px-2 py-1 rounded mt-1">
-                Username: admin | Password: op@1234
-              </p>
+            <div className="text-center text-sm text-gray-500 mb-3">
+              <p>Quick Login (for testing):</p>
             </div>
+            <button
+              type="button"
+              onClick={quickAdminLogin}
+              disabled={isLoading || !isOnline}
+              className="w-full btn-secondary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Login as Admin (admin / op@1234)
+            </button>
           </div>
         </form>
       </div>
