@@ -299,9 +299,11 @@ const CreateTournament = () => {
       
       // Test authentication
       if (authStatus.hasToken) {
+        const token = localStorage.getItem('token');
         const authResponse = await fetch('https://quiz-tournament-api.onrender.com/api/users/me', {
           headers: {
-            'Authorization': `Bearer ${authStatus.tokenPreview.replace('...', '') + localStorage.getItem('token').substring(20)}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         });
         
@@ -310,7 +312,7 @@ const CreateTournament = () => {
           console.log('Authenticated user:', userData);
           setDebugInfo(`Authenticated as: ${userData.username} (${userData.role})`);
         } else {
-          console.error('Authentication failed:', authResponse.status);
+          console.error('Authentication failed:', authResponse.status, await authResponse.text());
           setDebugInfo(`Authentication failed: ${authResponse.status}`);
         }
       } else {
