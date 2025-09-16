@@ -1,7 +1,3 @@
-// ================================
-// 1. src/pages/AuthDiagnostics.jsx - NEW FILE
-// ================================
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { testAPI, getCurrentApiUrl, checkApiHealth } from '../config/api';
