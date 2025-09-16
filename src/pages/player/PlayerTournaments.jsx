@@ -28,6 +28,8 @@ const PlayerTournaments = () => {
       
       const response = await tournamentAPI.getAll();
       console.log('Player: Tournaments response:', response);
+      console.log('Player: Response.data:', response.data);
+      console.log('Player: Response.data type:', typeof response.data);
       
       // Check if there's an error in the response
       if (response.error) {
@@ -37,15 +39,32 @@ const PlayerTournaments = () => {
         return;
       }
       
-      console.log('Player: Tournaments data:', response.data);
-      console.log('Player: Number of tournaments:', Array.isArray(response.data) ? response.data.length : 'Not an array');
+      // Handle different possible response structures
+      let tournamentsData = [];
       
-      // Ensure tournaments is an array
-      const tournamentsData = Array.isArray(response.data) 
-        ? response.data 
-        : [];
+      if (Array.isArray(response.data)) {
+        // Direct array response
+        tournamentsData = response.data;
+        console.log('Player: Using direct array from response.data');
+      } else if (Array.isArray(response.data?.tournaments)) {
+        // Nested array in tournaments property
+        tournamentsData = response.data.tournaments;
+        console.log('Player: Using response.data.tournaments');
+      } else if (response.data && typeof response.data === 'object') {
+        // Try to find arrays in the response object
+        const keys = Object.keys(response.data);
+        console.log('Player: Response data keys:', keys);
+        for (const key of keys) {
+          if (Array.isArray(response.data[key])) {
+            tournamentsData = response.data[key];
+            console.log(`Player: Using response.data.${key} as tournaments array`);
+            break;
+          }
+        }
+      }
       
-      console.log('Player: Processed tournaments:', tournamentsData);
+      console.log('Player: Final tournaments data:', tournamentsData);
+      console.log('Player: Number of tournaments:', tournamentsData.length);
       setTournaments(tournamentsData);
     } catch (error) {
       console.error('Player: Error fetching tournaments:', error);

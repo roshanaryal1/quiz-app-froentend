@@ -311,6 +311,60 @@ const CreateTournament = () => {
           const userData = await authResponse.json();
           console.log('Authenticated user:', userData);
           setDebugInfo(`Authenticated as: ${userData.username} (${userData.role})`);
+          
+          // Test tournaments API specifically
+          console.log('Testing tournaments API...');
+          const tournamentsResponse = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('Tournaments API response status:', tournamentsResponse.status);
+          console.log('Tournaments API response headers:', Array.from(tournamentsResponse.headers.entries()));
+          
+          if (tournamentsResponse.ok) {
+            const tournamentsData = await tournamentsResponse.json();
+            console.log('Tournaments API data:', tournamentsData);
+            setDebugInfo(`Tournaments API: Success - ${JSON.stringify(tournamentsData, null, 2)}`);
+          } else {
+            const errorText = await tournamentsResponse.text();
+            console.error('Tournaments API error:', errorText);
+            
+            // Try to test with a simpler endpoint first
+            console.log('Testing simpler API endpoints...');
+            
+            // Test without auth first
+            try {
+              const publicResponse = await fetch('https://quiz-tournament-api.onrender.com/api/test/info');
+              const publicData = await publicResponse.json();
+              console.log('Public API test:', publicData);
+            } catch (e) {
+              console.error('Public API test failed:', e);
+            }
+            
+            // Test if it's an auth issue by trying different headers
+            try {
+              const authTestResponse = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json',
+                  'Cache-Control': 'no-cache'
+                }
+              });
+              console.log('Auth test response status:', authTestResponse.status);
+              if (!authTestResponse.ok) {
+                const authErrorText = await authTestResponse.text();
+                console.log('Auth test error:', authErrorText);
+              }
+            } catch (e) {
+              console.error('Auth test failed:', e);
+            }
+            
+            setDebugInfo(`Tournaments API Error (${tournamentsResponse.status}): ${errorText}. Check console for detailed debugging.`);
+          }
         } else {
           console.error('Authentication failed:', authResponse.status, await authResponse.text());
           setDebugInfo(`Authentication failed: ${authResponse.status}`);
@@ -533,14 +587,176 @@ const CreateTournament = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+            <div className="flex flex-wrap justify-end gap-2 pt-6 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setDebugInfo('Testing backend health and troubleshooting...');
+                    const token = localStorage.getItem('token');
+                    
+                    console.log('🔍 BACKEND TROUBLESHOOTING START');
+                    
+                    // 1. Test if it's a database connectivity issue
+                    try {
+                      console.log('Testing user endpoint (should work)...');
+                      const userResponse = await fetch('https://quiz-tournament-api.onrender.com/api/users/me', {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      });
+                      
+                      if (userResponse.ok) {
+                        console.log('✅ Users endpoint works - DB connection is OK');
+                      } else {
+                        console.log('❌ Users endpoint failed - possible auth issue');
+                      }
+                    } catch (e) {
+                      console.error('❌ Users endpoint failed:', e);
+                    }
+                    
+                    // 2. Try accessing tournaments with minimal headers
+                    try {
+                      console.log('Testing tournaments with minimal request...');
+                      const minimalResponse = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      });
+                      
+                      console.log('Minimal tournaments response:', minimalResponse.status);
+                      const responseText = await minimalResponse.text();
+                      console.log('Response body:', responseText);
+                      
+                      try {
+                        const responseJson = JSON.parse(responseText);
+                        console.log('Parsed response:', responseJson);
+                      } catch (parseError) {
+                        console.log('Response is not valid JSON:', responseText);
+                      }
+                    } catch (e) {
+                      console.error('❌ Minimal tournaments test failed:', e);
+                    }
+                    
+                    // 3. Test if tournaments table exists by trying to create one
+                    try {
+                      console.log('Testing tournament creation with minimal data...');
+                      const testTournament = {
+                        name: 'Backend Test',
+                        category: 'General Knowledge',
+                        difficulty: 'easy',
+                        startDate: new Date(Date.now() + 300000).toISOString(), // 5 min from now
+                        endDate: new Date(Date.now() + 3900000).toISOString(),   // 65 min from now
+                        minimumPassingScore: 50
+                      };
+                      
+                      const createResponse = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${token}`,
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(testTournament)
+                      });
+                      
+                      console.log('Create test response:', createResponse.status);
+                      const createText = await createResponse.text();
+                      console.log('Create response body:', createText);
+                      
+                    } catch (e) {
+                      console.error('❌ Create test failed:', e);
+                    }
+                    
+                    // 4. Check if there are alternative endpoints
+                    try {
+                      console.log('Testing for alternative tournament endpoints...');
+                      const endpoints = [
+                        '/api/tournament',  // singular
+                        '/api/tournaments/all',
+                        '/api/tournaments/list',
+                        '/api/admin/tournaments'
+                      ];
+                      
+                      for (const endpoint of endpoints) {
+                        try {
+                          const response = await fetch(`https://quiz-tournament-api.onrender.com${endpoint}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                          });
+                          console.log(`${endpoint}: ${response.status}`);
+                        } catch (e) {
+                          console.log(`${endpoint}: failed`);
+                        }
+                      }
+                    } catch (e) {
+                      console.error('❌ Alternative endpoints test failed:', e);
+                    }
+                    
+                    console.log('🔍 BACKEND TROUBLESHOOTING END');
+                    setDebugInfo('Backend troubleshooting completed. Check console for detailed analysis.');
+                    
+                  } catch (error) {
+                    console.error('Troubleshooting failed:', error);
+                    setDebugInfo(`Troubleshooting failed: ${error.message}`);
+                  }
+                }}
+                className="btn-secondary text-xs px-2 py-1"
+                disabled={isLoading}
+              >
+                Troubleshoot Backend
+              </button>
               <button
                 type="button"
                 onClick={testApiConnection}
-                className="btn-secondary"
+                className="btn-secondary text-xs px-2 py-1"
                 disabled={isLoading}
               >
-                Test API Connection
+                Test API
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    setDebugInfo('Testing tournament creation API...');
+                    const token = localStorage.getItem('token');
+                    
+                    // Test with minimal data
+                    const testData = {
+                      name: 'API Test Tournament',
+                      category: 'General Knowledge',
+                      difficulty: 'medium',
+                      startDate: new Date(Date.now() + 60000).toISOString(), // 1 minute from now
+                      endDate: new Date(Date.now() + 3660000).toISOString(), // 1 hour from now
+                      minimumPassingScore: 70
+                    };
+                    
+                    console.log('Testing tournament creation with:', testData);
+                    
+                    const response = await fetch('https://quiz-tournament-api.onrender.com/api/tournaments', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify(testData)
+                    });
+                    
+                    console.log('Tournament creation test response:', response.status);
+                    
+                    if (response.ok) {
+                      const data = await response.json();
+                      console.log('Tournament creation test success:', data);
+                      setDebugInfo(`Tournament creation test: SUCCESS - ${JSON.stringify(data)}`);
+                    } else {
+                      const errorText = await response.text();
+                      console.error('Tournament creation test error:', errorText);
+                      setDebugInfo(`Tournament creation test ERROR (${response.status}): ${errorText}`);
+                    }
+                  } catch (error) {
+                    console.error('Tournament creation test failed:', error);
+                    setDebugInfo(`Tournament creation test failed: ${error.message}`);
+                  }
+                }}
+                className="btn-secondary text-xs px-2 py-1"
+                disabled={isLoading}
+              >
+                Test Create
               </button>
               <button
                 type="button"

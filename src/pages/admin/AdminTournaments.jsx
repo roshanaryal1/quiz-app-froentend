@@ -31,16 +31,47 @@ const AdminTournaments = () => {
       
       const response = await tournamentAPI.getAll();
       console.log('Admin: Tournaments response:', response);
+      console.log('Admin: Response.data:', response.data);
+      console.log('Admin: Response.data type:', typeof response.data);
+      console.log('Admin: Response.data.tournaments:', response.data?.tournaments);
       
-      // Ensure tournaments is an array
-      const tournamentsData = Array.isArray(response.data) 
-        ? response.data 
-        : [];
+      // Handle different possible response structures
+      let tournamentsData = [];
       
-      console.log('Admin: Processed tournaments:', tournamentsData);
+      if (Array.isArray(response.data)) {
+        // Direct array response
+        tournamentsData = response.data;
+        console.log('Admin: Using direct array from response.data');
+      } else if (Array.isArray(response.data?.tournaments)) {
+        // Nested array in tournaments property
+        tournamentsData = response.data.tournaments;
+        console.log('Admin: Using response.data.tournaments');
+      } else if (response.data && typeof response.data === 'object') {
+        // Try to find arrays in the response object
+        const keys = Object.keys(response.data);
+        console.log('Admin: Response data keys:', keys);
+        for (const key of keys) {
+          if (Array.isArray(response.data[key])) {
+            tournamentsData = response.data[key];
+            console.log(`Admin: Using response.data.${key} as tournaments array`);
+            break;
+          }
+        }
+      }
+      
+      console.log('Admin: Final tournaments data:', tournamentsData);
+      console.log('Admin: Number of tournaments:', tournamentsData.length);
       setTournaments(tournamentsData);
     } catch (error) {
       console.error('Admin: Error fetching tournaments:', error);
+      console.error('Admin: Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.response?.status,
+        data: error.response?.data,
+        stack: error.stack
+      });
+      
       let errorMessage = 'Failed to fetch tournaments';
       
       if (!navigator.onLine) {
@@ -54,8 +85,12 @@ const AdminTournaments = () => {
         }, 2000);
       } else if (error.response?.status === 403) {
         errorMessage = 'You do not have permission to access this resource.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error occurred. Please try again later.';
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = `API Error: ${error.message}`;
       }
       
       setError(errorMessage);
@@ -259,6 +294,23 @@ const AdminTournaments = () => {
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>Refresh</span>
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    console.log('Testing tournaments API...');
+                    const response = await tournamentAPI.getAll();
+                    console.log('Test API Response:', response);
+                    alert(`API Test: ${JSON.stringify(response.data, null, 2)}`);
+                  } catch (error) {
+                    console.error('Test API Error:', error);
+                    alert(`API Test Error: ${error.message}`);
+                  }
+                }}
+                className="btn-secondary inline-flex items-center space-x-2"
+                title="Test tournaments API"
+              >
+                <span>Test API</span>
               </button>
               <Link
                 to="/admin/create-tournament"
