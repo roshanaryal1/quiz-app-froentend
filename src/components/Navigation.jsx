@@ -1,7 +1,11 @@
+// ================================
+// 4. src/components/Navigation.jsx
+// ================================
+
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Menu, X, Trophy, User, LogOut, Shield, Play } from 'lucide-react';
+import { Menu, X, Trophy, User, LogOut, Shield, Play, Settings, Activity } from 'lucide-react';
 
 const Navigation = () => {
   const { isAuthenticated, user, logout } = useAuth();
@@ -19,13 +23,13 @@ const Navigation = () => {
 
   const adminLinks = [
     { path: '/admin/tournaments', label: 'Manage Tournaments', icon: Trophy },
-    { path: '/admin/users', label: 'Users', icon: User },
+    { path: '/admin/create-tournament', label: 'Create Tournament', icon: Play },
   ];
 
   const playerLinks = [
-    { path: '/player/tournaments', label: 'Tournaments', icon: Trophy },
-    { path: '/player/ongoing', label: 'Play', icon: Play },
-    { path: '/player/history', label: 'My History', icon: User },
+    { path: '/player/tournaments', label: 'All Tournaments', icon: Trophy },
+    { path: '/player/ongoing', label: 'Play Live', icon: Play },
+    { path: '/player/history', label: 'My History', icon: Activity },
   ];
 
   const NavLink = ({ to, children, icon: Icon, onClick }) => (
@@ -99,24 +103,32 @@ const Navigation = () => {
                     <div className="py-1">
                       <Link
                         to="/profile"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                       >
-                        Profile Settings
+                        <Settings size={16} />
+                        <span>Profile Settings</span>
                       </Link>
                       <Link
                         to="/auth-diagnostics"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                       >
-                        Connection Status
+                        <Activity size={16} />
+                        <span>Connection Status</span>
                       </Link>
+                      <Link
+                        to="/diagnostics"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
+                      >
+                        <Settings size={16} />
+                        <span>API Diagnostics</span>
+                      </Link>
+                      <div className="border-t border-gray-100"></div>
                       <button
                         onClick={handleLogout}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
                       >
-                        <div className="flex items-center space-x-2">
-                          <LogOut size={16} />
-                          <span>Logout</span>
-                        </div>
+                        <LogOut size={16} />
+                        <span>Logout</span>
                       </button>
                     </div>
                   </div>
@@ -193,30 +205,40 @@ const Navigation = () => {
                   </NavLink>
                 ))}
 
-                {/* Profile and logout */}
-                <Link
-                  to="/profile"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                >
-                  Profile Settings
-                </Link>
-                <Link
-                  to="/auth-diagnostics"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                >
-                  Connection Status
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="block w-full text-left px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                >
-                  <div className="flex items-center space-x-2">
+                {/* Profile and settings */}
+                <div className="border-t border-gray-200 pt-2">
+                  <Link
+                    to="/profile"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center space-x-2 px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                  >
+                    <Settings size={18} />
+                    <span>Profile Settings</span>
+                  </Link>
+                  <Link
+                    to="/auth-diagnostics"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center space-x-2 px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                  >
+                    <Activity size={18} />
+                    <span>Connection Status</span>
+                  </Link>
+                  <Link
+                    to="/diagnostics"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center space-x-2 px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                  >
+                    <Settings size={18} />
+                    <span>API Diagnostics</span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center space-x-2 w-full text-left px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
+                  >
                     <LogOut size={18} />
                     <span>Logout</span>
-                  </div>
-                </button>
+                  </button>
+                </div>
               </>
             )}
           </div>
