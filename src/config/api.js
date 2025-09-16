@@ -1,4 +1,4 @@
-// src/config/api.js - Fixed version with better caching
+// src/config/api.js - Optimized and fixed version
 import axios from 'axios';
 
 // API Configuration - Handles both local and deployed backends
@@ -19,17 +19,21 @@ const getApiBaseUrl = () => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
+console.log(`🌐 API Configuration: Using ${API_BASE_URL}`);
 
-// Log which API URL is being used
-console.log(`�� API Configuration: Using ${API_BASE_URL}`);
+// Create axios instance with optimized settings
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000, // 30 second timeout
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
 
-// Environment detection utility
-export const isLocalEnvironment = () => {
-  const hostname = window.location.hostname;
-  return hostname === 'localhost' || hostname === '127.0.0.1';
-};
+// Dynamic API instance that can switch backends
+let currentApiUrl = API_BASE_URL;
 
-// Backend health check with fallback
+// Backend health check
 export const detectBackend = async () => {
   const localUrl = 'http://localhost:8080/api';
   const deployedUrl = 'https://quiz-tournament-api.onrender.com/api';
@@ -37,7 +41,7 @@ export const detectBackend = async () => {
   const testEndpoint = async (url) => {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // Increased timeout
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       
       const response = await fetch(`${url}/health`, {
         method: 'GET',
@@ -79,20 +83,8 @@ export const detectBackend = async () => {
   }
   
   console.log('❌ No backend available, using default');
-  return deployedUrl; // Fallback to deployed
+  return deployedUrl;
 };
-
-// Create axios instance with optimized settings
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000, // 30 second timeout
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Dynamic API instance that can switch backends
-let currentApiUrl = API_BASE_URL;
 
 export const switchBackend = async (forceDetect = false) => {
   if (forceDetect) {
@@ -101,14 +93,13 @@ export const switchBackend = async (forceDetect = false) => {
       currentApiUrl = detectedUrl;
       api.defaults.baseURL = currentApiUrl;
       console.log(`🔄 Switched to backend: ${currentApiUrl}`);
-      clearTournamentCache(); // Clear cache when switching
+      clearTournamentCache();
       return true;
     }
   }
   return false;
 };
 
-// Initialize with backend detection
 export const initializeApi = async () => {
   try {
     const detectedUrl = await detectBackend();
@@ -124,29 +115,20 @@ export const initializeApi = async () => {
 
 export const getCurrentApiUrl = () => currentApiUrl;
 
-// Request interceptor - simplified with backend switching
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
-    // Ensure we're using the current API URL
     config.baseURL = currentApiUrl;
-    
-    // Add cache-busting for tournament requests
-    if (config.url && config.url.includes('tournaments')) {
-      config.params = config.params || {};
-      config.params._t = Date.now();
-    }
-    
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response interceptor - with backend switching on errors
+// Response interceptor with better error handling
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -177,19 +159,13 @@ api.interceptors.response.use(
   }
 );
 
-// Improved health check with multiple endpoints
+// Health check with multiple endpoints
 export const checkApiHealth = async () => {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    // Try multiple possible health endpoints
-    const healthEndpoints = [
-      '/health',
-      '/api/health', 
-      '/actuator/health',
-      '/test/health'
-    ];
+    const healthEndpoints = ['/health', '/api/health', '/actuator/health', '/test/health'];
     
     for (const endpoint of healthEndpoints) {
       try {
@@ -205,7 +181,6 @@ export const checkApiHealth = async () => {
           return true;
         }
       } catch (endpointError) {
-        console.log(`❌ Health check failed on: ${endpoint}`);
         continue;
       }
     }
@@ -214,25 +189,13 @@ export const checkApiHealth = async () => {
   } catch (error) {
     console.log('🔄 Health check failed, trying to switch backend...');
     const switched = await switchBackend(true);
-    if (switched) {
-      try {
-        const response = await fetch(`${currentApiUrl}/health`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        return response.ok;
-      } catch (retryError) {
-        return false;
-      }
-    }
-    return false;
+    return switched;
   }
 };
 
-// Minimal warmup - only if really needed
+// Warm up API
 export const warmupApi = async () => {
   try {
-    // Try current backend first
     const response = await fetch(`${currentApiUrl}/health`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
@@ -242,7 +205,6 @@ export const warmupApi = async () => {
       return true;
     }
     
-    // If failed, try switching backend
     const switched = await switchBackend(true);
     return switched;
   } catch (error) {
@@ -251,14 +213,14 @@ export const warmupApi = async () => {
   }
 };
 
-// FIXED: Robust tournament cache that persists across page refreshes
+// Tournament cache system
 let tournamentCache = null;
 let cacheTime = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const CACHE_KEY = 'tournament_cache';
 const CACHE_TIME_KEY = 'tournament_cache_time';
 
-// Load cache from localStorage on page load
+// Load cache from localStorage
 const loadCacheFromStorage = () => {
   try {
     const cachedData = localStorage.getItem(CACHE_KEY);
@@ -272,13 +234,12 @@ const loadCacheFromStorage = () => {
         console.log('📦 Loaded tournaments from localStorage cache');
         return true;
       } else {
-        console.log('🗑️ Cache expired, clearing localStorage');
         localStorage.removeItem(CACHE_KEY);
         localStorage.removeItem(CACHE_TIME_KEY);
       }
     }
   } catch (error) {
-    console.error('❌ Error loading cache from storage:', error);
+    console.error('❌ Error loading cache:', error);
     localStorage.removeItem(CACHE_KEY);
     localStorage.removeItem(CACHE_TIME_KEY);
   }
@@ -292,7 +253,7 @@ const saveCacheToStorage = (data) => {
     localStorage.setItem(CACHE_TIME_KEY, Date.now().toString());
     console.log('💾 Saved tournaments to localStorage cache');
   } catch (error) {
-    console.error('❌ Error saving cache to storage:', error);
+    console.error('❌ Error saving cache:', error);
   }
 };
 
@@ -301,13 +262,13 @@ export const clearTournamentCache = () => {
   cacheTime = null;
   localStorage.removeItem(CACHE_KEY);
   localStorage.removeItem(CACHE_TIME_KEY);
-  console.log('��️ Tournament cache cleared');
+  console.log('🗑️ Tournament cache cleared');
 };
 
 // Initialize cache on module load
 loadCacheFromStorage();
 
-// Minimal sanitization - only for critical issues
+// Data sanitization for safety
 const sanitizeData = (data) => {
   if (!data || typeof data !== 'object') return data;
   
@@ -315,9 +276,11 @@ const sanitizeData = (data) => {
     return data.map(item => sanitizeData(item));
   }
   
-  // Only keep essential properties
   const safe = {};
-  const essentialProps = ['id', 'name', 'category', 'difficulty', 'startDate', 'endDate', 'minimumPassingScore', 'attempts'];
+  const essentialProps = [
+    'id', 'name', 'category', 'difficulty', 'startDate', 'endDate', 
+    'minimumPassingScore', 'attempts', 'creator', 'questions'
+  ];
   
   for (const prop of essentialProps) {
     if (data[prop] !== undefined) {
@@ -325,19 +288,35 @@ const sanitizeData = (data) => {
     }
   }
   
-  // Handle creator simply
+  // Handle nested objects
   if (data.creator) {
     safe.creator = {
       id: data.creator.id,
       firstName: data.creator.firstName,
-      lastName: data.creator.lastName
+      lastName: data.creator.lastName,
+      username: data.creator.username
     };
+  }
+  
+  if (data.attempts && Array.isArray(data.attempts)) {
+    safe.attempts = data.attempts.map(attempt => ({
+      id: attempt.id,
+      score: attempt.score,
+      totalQuestions: attempt.totalQuestions,
+      completedAt: attempt.completedAt,
+      user: attempt.user ? {
+        id: attempt.user.id,
+        firstName: attempt.user.firstName,
+        lastName: attempt.user.lastName,
+        username: attempt.user.username
+      } : null
+    }));
   }
   
   return safe;
 };
 
-// Auth API - optimized for speed
+// Auth API
 export const authAPI = {
   login: (credentials) => {
     console.log('🔐 Attempting login...');
@@ -363,7 +342,7 @@ export const authAPI = {
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
 };
 
-// FIXED: Tournament API with robust caching and error handling
+// Tournament API with robust caching
 export const tournamentAPI = {
   getAll: async (forceRefresh = false) => {
     console.log('🎯 TournamentAPI.getAll called, forceRefresh:', forceRefresh);
@@ -377,39 +356,31 @@ export const tournamentAPI = {
     try {
       console.log('🌐 Fetching fresh tournaments from API...');
       const response = await api.get('/tournaments');
-      console.log('�� Raw API response:', response);
       
       // Handle different response structures
       let tournaments = [];
       if (Array.isArray(response.data)) {
         tournaments = response.data;
-        console.log('✅ Using direct array response');
       } else if (response.data && typeof response.data === 'object') {
-        // Try different property names
         const possibleKeys = ['tournaments', 'data', 'content', 'items', 'list'];
         for (const key of possibleKeys) {
           if (Array.isArray(response.data[key])) {
             tournaments = response.data[key];
-            console.log(`✅ Using response.data.${key}`);
             break;
           }
         }
         
-        // If still no array found, check all keys
         if (tournaments.length === 0) {
           const keys = Object.keys(response.data);
-          console.log('🔍 Available keys:', keys);
           for (const key of keys) {
             if (Array.isArray(response.data[key])) {
               tournaments = response.data[key];
-              console.log(`✅ Found array in response.data.${key}`);
               break;
             }
           }
         }
       }
       
-      // Validate and sanitize data
       if (!Array.isArray(tournaments)) {
         console.error('❌ No valid tournament array found in response');
         tournaments = [];
@@ -418,7 +389,7 @@ export const tournamentAPI = {
       const sanitized = sanitizeData(tournaments);
       console.log(`📊 Processed ${sanitized.length} tournaments`);
       
-      // Update cache in both memory and localStorage
+      // Update cache
       tournamentCache = sanitized;
       cacheTime = Date.now();
       saveCacheToStorage(sanitized);
@@ -427,7 +398,7 @@ export const tournamentAPI = {
     } catch (error) {
       console.error('❌ Tournament API error:', error);
       
-      // Return cached data if available, even if expired
+      // Return cached data if available
       if (tournamentCache) {
         console.log('🔄 Returning stale cache due to API error');
         return { data: tournamentCache };
@@ -442,7 +413,7 @@ export const tournamentAPI = {
   create: async (data) => {
     console.log('➕ Creating tournament:', data);
     const response = await api.post('/tournaments', data);
-    clearTournamentCache(); // Clear cache on create
+    clearTournamentCache();
     console.log('✅ Tournament created, cache cleared');
     return response;
   },
@@ -450,7 +421,7 @@ export const tournamentAPI = {
   update: async (id, data) => {
     console.log('✏️ Updating tournament:', id, data);
     const response = await api.put(`/tournaments/${id}`, data);
-    clearTournamentCache(); // Clear cache on update
+    clearTournamentCache();
     console.log('✅ Tournament updated, cache cleared');
     return response;
   },
@@ -458,7 +429,7 @@ export const tournamentAPI = {
   delete: async (id) => {
     console.log('🗑️ Deleting tournament:', id);
     const response = await api.delete(`/tournaments/${id}`);
-    clearTournamentCache(); // Clear cache on delete
+    clearTournamentCache();
     console.log('✅ Tournament deleted, cache cleared');
     return response;
   },

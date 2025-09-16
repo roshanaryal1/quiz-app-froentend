@@ -1,7 +1,4 @@
-// ================================
-// 3. src/App.jsx
-// ================================
-
+// Fixed App.jsx with all necessary routes and imports
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
@@ -27,6 +24,11 @@ import PlayerTournaments from './pages/player/PlayerTournaments';
 import TournamentPlay from './pages/player/TournamentPlay';
 import PlayerHistory from './pages/player/PlayerHistory';
 import OngoingTournaments from './pages/player/OngoingTournaments';
+import TournamentResults from './pages/player/TournamentResults';
+
+// Diagnostic Pages
+import AuthDiagnostics from './pages/AuthDiagnostics';
+import Diagnostics from './pages/Diagnostics';
 
 // Error Pages
 import NotFound from './pages/NotFound';
@@ -37,7 +39,7 @@ const DebugInfo = () => {
   const token = localStorage.getItem('token');
   const user = localStorage.getItem('user');
   
-  if (process.env.NODE_ENV !== 'development') return null;
+  if (import.meta.env.NODE_ENV === 'production') return null;
   
   return (
     <div className="fixed bottom-0 right-0 bg-black text-white text-xs p-2 z-50 max-w-xs">
@@ -65,6 +67,10 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
+              
+              {/* Diagnostic Routes */}
+              <Route path="/auth-diagnostics" element={<AuthDiagnostics />} />
+              <Route path="/diagnostics" element={<Diagnostics />} />
               
               {/* Protected routes - Any authenticated user */}
               <Route 
@@ -128,6 +134,14 @@ function App() {
                 } 
               />
               <Route 
+                path="/player/tournaments/:id/results" 
+                element={
+                  <ProtectedRoute requiredRole="PLAYER">
+                    <TournamentResults />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
                 path="/player/history" 
                 element={
                   <ProtectedRoute requiredRole="PLAYER">
@@ -141,7 +155,7 @@ function App() {
             </Routes>
             
             {/* Debug info in development */}
-            {process.env.NODE_ENV === 'development' && <DebugInfo />}
+            {import.meta.env.DEV && <DebugInfo />}
           </div>
         </Router>
       </AuthProvider>
