@@ -58,7 +58,7 @@ const api = axios.create({
 // Enhanced request interceptor
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('authToken');
+    const token = localStorage.getItem('token'); // Changed from 'authToken' to 'token'
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -96,8 +96,8 @@ api.interceptors.response.use(
     
     if (error.response?.status === 401) {
       console.error('🔒 Authentication error - redirecting to login');
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userRole');
+      localStorage.removeItem('token'); // Changed from 'authToken' to 'token'
+      localStorage.removeItem('user'); // Also remove user data
       window.location.href = '/login';
     }
     
@@ -158,31 +158,193 @@ let tournamentCache = null;
 let cacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Initialize cache from localStorage on startup
+const initializeTournamentCache = () => {
+  try {
+    const cachedData = localStorage.getItem('tournament_cache');
+    const cachedTime = localStorage.getItem('tournament_cache_timestamp');
+    
+    if (cachedData && cachedTime) {
+      const cacheAge = Date.now() - parseInt(cachedTime);
+      if (cacheAge < CACHE_DURATION) {
+        tournamentCache = JSON.parse(cachedData);
+        cacheTimestamp = parseInt(cachedTime);
+        console.log('📦 Restored tournament cache from localStorage:', tournamentCache.length, 'tournaments');
+      } else {
+        console.log('🗑️ Cache expired, will fetch fresh from MySQL');
+        localStorage.removeItem('tournament_cache');
+        localStorage.removeItem('tournament_cache_timestamp');
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Error loading tournament cache:', error);
+  }
+};
+
+// Initialize cache on module load
+initializeTournamentCache();
+
 export const clearTournamentCache = () => {
-  console.log('🗑️ Clearing tournament cache');
+  console.log('🗑️ Clearing tournament cache - will fetch fresh from MySQL');
   tournamentCache = null;
   cacheTimestamp = null;
-  // Also clear from localStorage if being used
+  // Also clear from localStorage
   localStorage.removeItem('tournament_cache');
   localStorage.removeItem('tournament_cache_timestamp');
+  
+  // Dispatch event to notify components to refresh
+  window.dispatchEvent(new CustomEvent('tournamentCacheCleared'));
 };
 
 // Authentication API calls
 export const authAPI = {
   signin: (credentials) => api.post('/auth/signin', credentials),
+  login: (credentials) => api.post('/auth/signin', credentials), // Alias for signin
+  register: (userData, userType) => {
+    // Handle registration based on user type
+    const endpoint = userType === 'admin' ? '/auth/signup/admin' : '/auth/signup/player';
+    return api.post(endpoint, userData);
+  },
   signupPlayer: (userData) => api.post('/auth/signup/player', userData),
   signupAdmin: (userData) => api.post('/auth/signup/admin', userData),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, newPassword) => api.post('/auth/reset-password', { token, newPassword }),
 };
 
-// Tournament API calls
+// Enhanced Tournament API calls with proper MySQL data fetching
 export const tournamentAPI = {
-  getAll: () => api.get('/tournaments'),
-  getById: (id) => api.get(`/tournaments/${id}`),
-  create: (tournament) => api.post('/tournaments', tournament),
-  update: (id, tournament) => api.put(`/tournaments/${id}`, tournament),
-  delete: (id) => api.delete(`/tournaments/${id}`),
+  getAll: async (forceRefresh = false) => {
+    try {
+      console.log('🎯 Fetching tournaments from MySQL...', forceRefresh ? '(force refresh)' : '');
+      
+      // Skip cache if force refresh or on page load
+      if (!forceRefresh && tournamentCache && cacheTimestamp) {
+        const cacheAge = Date.now() - cacheTimestamp;
+        if (cacheAge < CACHE_DURATION) {
+          console.log('📋 Using cached tournaments (MySQL data):', tournamentCache.length, 'tournaments');
+          return { data: tournamentCache };
+        }
+      }
+      
+      // Fetch fresh data from MySQL backend
+      const response = await api.get('/tournaments');
+      console.log('📊 Raw response from MySQL backend:', response);
+      
+      // Handle different response structures your backend might return
+      let tournaments = [];
+      if (Array.isArray(response.data)) {
+        tournaments = response.data;
+      } else if (response.data && response.data.tournaments && Array.isArray(response.data.tournaments)) {
+        tournaments = response.data.tournaments;
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        tournaments = response.data.data;
+      } else if (response.data && response.data.content && Array.isArray(response.data.content)) {
+        tournaments = response.data.content;
+      } else {
+        console.warn('⚠️ Unexpected response structure from backend:', response.data);
+        tournaments = [];
+      }
+      
+      console.log(`✅ Successfully fetched ${tournaments.length} tournaments from MySQL backend`);
+      
+      // Update cache with fresh MySQL data
+      tournamentCache = tournaments;
+      cacheTimestamp = Date.now();
+      
+      // Store in localStorage for persistence across refreshes
+      localStorage.setItem('tournament_cache', JSON.stringify(tournaments));
+      localStorage.setItem('tournament_cache_timestamp', cacheTimestamp.toString());
+      
+      return { ...response, data: tournaments };
+      
+    } catch (error) {
+      console.error('❌ Error fetching tournaments from MySQL backend:', error);
+      
+      // Try localStorage cache as fallback
+      const cachedData = localStorage.getItem('tournament_cache');
+      const cachedTime = localStorage.getItem('tournament_cache_timestamp');
+      
+      if (cachedData && cachedTime) {
+        const cacheAge = Date.now() - parseInt(cachedTime);
+        if (cacheAge < CACHE_DURATION * 2) { // Allow stale cache during errors
+          console.log('📋 Using localStorage cache due to MySQL fetch error');
+          const tournaments = JSON.parse(cachedData);
+          tournamentCache = tournaments;
+          cacheTimestamp = parseInt(cachedTime);
+          return { data: tournaments };
+        }
+      }
+      
+      throw error;
+    }
+  },
+  
+  getById: async (id) => {
+    try {
+      console.log('🎯 Fetching tournament details from MySQL:', id);
+      const response = await api.get(`/tournaments/${id}`);
+      console.log('✅ Tournament details from MySQL:', response.data);
+      return response;
+    } catch (error) {
+      console.error('❌ Error fetching tournament details:', error);
+      throw error;
+    }
+  },
+  
+  create: async (tournament) => {
+    try {
+      console.log('🚀 Creating tournament in MySQL backend:', tournament);
+      const response = await api.post('/tournaments', tournament);
+      console.log('✅ Tournament created successfully in MySQL:', response.data);
+      
+      // Force clear cache so next fetch gets fresh MySQL data
+      clearTournamentCache();
+      
+      // Trigger event for components to refresh
+      window.dispatchEvent(new CustomEvent('tournamentCreated', { 
+        detail: response.data 
+      }));
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Error creating tournament in MySQL:', error);
+      throw error;
+    }
+  },
+  
+  update: async (id, tournament) => {
+    try {
+      console.log('🔄 Updating tournament in MySQL:', id, tournament);
+      const response = await api.put(`/tournaments/${id}`, tournament);
+      console.log('✅ Tournament updated in MySQL:', response.data);
+      
+      // Clear cache to force fresh MySQL fetch
+      clearTournamentCache();
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Error updating tournament:', error);
+      throw error;
+    }
+  },
+  
+  delete: async (id) => {
+    try {
+      console.log('🗑️ Deleting tournament from MySQL:', id);
+      const response = await api.delete(`/tournaments/${id}`);
+      console.log('✅ Tournament deleted from MySQL');
+      
+      // Clear cache to force fresh MySQL fetch
+      clearTournamentCache();
+      
+      return response;
+    } catch (error) {
+      console.error('❌ Error deleting tournament:', error);
+      throw error;
+    }
+  },
+  
+  // Keep existing methods unchanged
   participate: (id, answers) => api.post(`/tournaments/${id}/participate`, answers),
   getQuestions: (id) => api.get(`/tournaments/${id}/questions`),
   like: (id) => api.post(`/tournaments/${id}/like`),
@@ -202,6 +364,17 @@ export const userAPI = {
 export const testAPI = {
   health: () => api.get('/test/health'),
   info: () => api.get('/test/info'),
+  mysql: async () => {
+    try {
+      console.log('🗄️ Testing MySQL connection via tournaments endpoint...');
+      const response = await api.get('/tournaments');
+      console.log('✅ MySQL connection successful - fetched tournaments:', response.data);
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('❌ MySQL connection test failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
 };
 
 export default api;
