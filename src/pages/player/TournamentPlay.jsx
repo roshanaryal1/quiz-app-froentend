@@ -1,7 +1,11 @@
+// ================================
+// 2. src/pages/player/TournamentPlay.jsx
+// ================================
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { tournamentAPI } from '../../config/api';
-import { Clock, Trophy, ArrowLeft, CheckCircle, AlertCircle, Play, Heart } from 'lucide-react';
+import { Clock, Trophy, ArrowLeft, CheckCircle, AlertCircle, Play, Heart, Zap } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const TournamentPlay = () => {
@@ -47,6 +51,10 @@ const TournamentPlay = () => {
       console.log('Tournament response:', tournamentResponse.data);
       console.log('Questions response:', questionsResponse.data);
       
+      if (!tournamentResponse.data) {
+        throw new Error('Tournament not found');
+      }
+      
       setTournament(tournamentResponse.data);
       
       // Ensure questions is an array
@@ -54,29 +62,35 @@ const TournamentPlay = () => {
         ? questionsResponse.data 
         : [];
       
+      if (questionsData.length === 0) {
+        throw new Error('No questions available for this tournament');
+      }
+      
       setQuestions(questionsData);
     } catch (error) {
       console.error('Error fetching tournament:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to load tournament data';
+      let errorMessage = 'Failed to load tournament data';
       
-      // If it's a network error, show a more helpful message
       if (!navigator.onLine) {
-        setError('You appear to be offline. Please check your internet connection.');
+        errorMessage = 'You appear to be offline. Please check your internet connection.';
       } else if (error.code === 'ECONNABORTED') {
-        setError('Request timed out. The server might be busy or unavailable.');
+        errorMessage = 'Request timed out. The server might be busy or unavailable.';
       } else if (error.response?.status === 401) {
-        setError('Your session has expired. Redirecting to login...');
-        // Redirect will be handled by API interceptor, but show message first
+        errorMessage = 'Your session has expired. Redirecting to login...';
         setTimeout(() => {
           window.location.href = '/login?message=Your session has expired. Please log in again.';
         }, 2000);
       } else if (error.response?.status === 403) {
-        setError('You do not have permission to access this tournament. Please check your account type.');
+        errorMessage = 'You do not have permission to access this tournament.';
       } else if (error.response?.status === 404) {
-        setError('Tournament not found. It may have been deleted or the link is incorrect.');
-      } else {
-        setError(errorMessage);
+        errorMessage = 'Tournament not found. It may have been deleted or the link is incorrect.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -175,9 +189,13 @@ const TournamentPlay = () => {
         answersArray.push(finalAnswers[i] || '');
       }
 
+      console.log('Submitting answers:', answersArray);
       const response = await tournamentAPI.participate(id, { answers: answersArray });
+      console.log('Participation result:', response.data);
+      
       setResult(response.data);
     } catch (error) {
+      console.error('Error submitting quiz:', error);
       const errorMessage = error.response?.data?.message || 'Failed to submit quiz';
       setError(errorMessage);
     } finally {
@@ -188,10 +206,7 @@ const TournamentPlay = () => {
   const handleLikeTournament = async () => {
     try {
       await tournamentAPI.like(id);
-      setTournament(prev => ({
-        ...prev,
-        isLiked: true
-      }));
+      console.log('Tournament liked successfully');
     } catch (error) {
       console.error('Error liking tournament:', error);
     }
@@ -210,7 +225,7 @@ const TournamentPlay = () => {
     );
   }
 
-  if (!tournament || !questions.length) {
+  if (!tournament || questions.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -382,7 +397,7 @@ const TournamentPlay = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Participants:</span>
-                    <span className="font-medium">{tournament.attempts?.length || 0}</span>
+                    <span className="font-medium">{Array.isArray(tournament.attempts) ? tournament.attempts.length : 0}</span>
                   </div>
                 </div>
               </div>
