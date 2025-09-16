@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { tournamentAPI } from '../../config/api';
+import { AuthContext } from '../../contexts/AuthContext';
 import { Trophy, Calendar, Award, TrendingUp, BarChart3, Target, Clock, CheckCircle, XCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const PlayerHistory = () => {
+  const { user } = useContext(AuthContext);
   const [participatedTournaments, setParticipatedTournaments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -18,11 +20,83 @@ const PlayerHistory = () => {
   const fetchPlayerHistory = async () => {
     try {
       setIsLoading(true);
-      const response = await tournamentAPI.getParticipated();
-      setParticipatedTournaments(response.data);
+      setError('');
+      console.log('🎯 Fetching player history...');
+      
+      let response;
+      try {
+        // Try the dedicated participated endpoint first
+        response = await tournamentAPI.getParticipated();
+        console.log('📊 Player history response (participated):', response);
+      } catch (participatedError) {
+        console.log('⚠️ Participated endpoint failed, trying alternatives...');
+        
+        // Fallback 1: Try getting all tournaments and filter client-side
+        try {
+          const allTournamentsResponse = await tournamentAPI.getAll();
+          console.log('📊 All tournaments response:', allTournamentsResponse);
+          
+          // Filter tournaments that have user's attempts
+          const allTournaments = Array.isArray(allTournamentsResponse.data) 
+            ? allTournamentsResponse.data 
+            : [];
+            
+          const participatedTournaments = allTournaments.filter(tournament => {
+            if (!tournament.attempts || !Array.isArray(tournament.attempts)) {
+              return false;
+            }
+            
+            // Check if user has participated
+            return tournament.attempts.some(attempt => 
+              attempt.user && (
+                attempt.user.id === user?.id || 
+                attempt.user.id === parseInt(user?.id) ||
+                attempt.user.username === user?.username
+              )
+            );
+          });
+          
+          response = { data: participatedTournaments };
+          console.log(`✅ Found ${participatedTournaments.length} participated tournaments (filtered)`);
+        } catch (allTournamentsError) {
+          console.error('❌ All fallback methods failed:', allTournamentsError);
+          throw participatedError; // Throw original error
+        }
+      }
+      
+      // Handle different response structures
+      let tournaments = [];
+      if (response.data) {
+        if (Array.isArray(response.data)) {
+          tournaments = response.data;
+        } else if (response.data.tournaments) {
+          tournaments = response.data.tournaments;
+        } else if (response.data.content) {
+          tournaments = response.data.content;
+        } else if (response.data.data) {
+          tournaments = response.data.data;
+        }
+      }
+      
+      console.log(`✅ Final result: ${tournaments.length} participated tournaments`);
+      setParticipatedTournaments(tournaments);
+      
+      if (tournaments.length === 0) {
+        setError('No tournament history found. Start participating in tournaments to see your progress here!');
+      }
     } catch (error) {
-      setError('Failed to fetch tournament history');
-      console.error('Error fetching player history:', error);
+      console.error('❌ Error fetching player history:', error);
+      
+      // Check if it's an authentication error
+      if (error.response?.status === 401) {
+        setError('Please log in to view your tournament history.');
+      } else if (error.response?.status === 403) {
+        setError('You do not have permission to view tournament history.');
+      } else if (error.response?.status === 404) {
+        setError('Tournament history service not available. Please try again later.');
+      } else {
+        setError('Failed to fetch tournament history. Please check your connection and try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -43,16 +117,47 @@ const PlayerHistory = () => {
     const tournaments = participatedTournaments;
     const totalParticipated = tournaments.length;
     
-    // Get scores from attempts
+    // Get scores from attempts - find current user's attempts
     const scores = tournaments.map(t => {
-      const userAttempt = t.attempts?.find(a => a.user?.id); // Find user's attempt
-      return userAttempt ? userAttempt.score : 0;
+      // Try different ways to find user's attempt
+      let userAttempt = null;
+      
+      if (t.attempts && Array.isArray(t.attempts)) {
+        // Try to find by user ID
+        userAttempt = t.attempts.find(a => 
+          a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
+        );
+        
+        // If no user ID match, check if there's only one attempt (likely the user's)
+        if (!userAttempt && t.attempts.length === 1) {
+          userAttempt = t.attempts[0];
+        }
+      }
+      
+      // If no attempts array, check if score is directly on tournament
+      if (!userAttempt && (t.score !== undefined || t.userScore !== undefined)) {
+        return t.score || t.userScore || 0;
+      }
+      
+      return userAttempt ? userAttempt.score || 0 : 0;
     });
 
     const passedTournaments = tournaments.filter(t => {
-      const userAttempt = t.attempts?.find(a => a.user?.id);
-      const score = userAttempt ? userAttempt.score : 0;
-      return score >= t.minimumPassingScore;
+      let userAttempt = null;
+      
+      if (t.attempts && Array.isArray(t.attempts)) {
+        userAttempt = t.attempts.find(a => 
+          a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
+        );
+        
+        if (!userAttempt && t.attempts.length === 1) {
+          userAttempt = t.attempts[0];
+        }
+      }
+      
+      const score = userAttempt ? userAttempt.score || 0 : (t.score || t.userScore || 0);
+      const passingScore = t.minimumPassingScore || t.passingScore || 70;
+      return score >= passingScore;
     });
 
     const totalPassed = passedTournaments.length;
@@ -63,11 +168,15 @@ const PlayerHistory = () => {
     // Calculate favorite category
     const categoryCount = {};
     tournaments.forEach(t => {
-      categoryCount[t.category] = (categoryCount[t.category] || 0) + 1;
+      const category = t.category || 'General';
+      categoryCount[category] = (categoryCount[category] || 0) + 1;
     });
-    const favoriteCategory = Object.keys(categoryCount).reduce((a, b) => 
-      categoryCount[a] > categoryCount[b] ? a : b, 'None'
-    );
+    
+    const favoriteCategory = Object.keys(categoryCount).length > 0 
+      ? Object.keys(categoryCount).reduce((a, b) => 
+          categoryCount[a] > categoryCount[b] ? a : b, 'None'
+        )
+      : 'None';
 
     return {
       totalParticipated,
@@ -85,34 +194,80 @@ const PlayerHistory = () => {
     // Filter
     if (filter === 'passed') {
       filtered = filtered.filter(t => {
-        const userAttempt = t.attempts?.find(a => a.user?.id);
-        const score = userAttempt ? userAttempt.score : 0;
-        return score >= t.minimumPassingScore;
+        let userAttempt = null;
+        
+        if (t.attempts && Array.isArray(t.attempts)) {
+          userAttempt = t.attempts.find(a => 
+            a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
+          );
+          
+          if (!userAttempt && t.attempts.length === 1) {
+            userAttempt = t.attempts[0];
+          }
+        }
+        
+        const score = userAttempt ? userAttempt.score || 0 : (t.score || t.userScore || 0);
+        const passingScore = t.minimumPassingScore || t.passingScore || 70;
+        return score >= passingScore;
       });
     } else if (filter === 'failed') {
       filtered = filtered.filter(t => {
-        const userAttempt = t.attempts?.find(a => a.user?.id);
-        const score = userAttempt ? userAttempt.score : 0;
-        return score < t.minimumPassingScore;
+        let userAttempt = null;
+        
+        if (t.attempts && Array.isArray(t.attempts)) {
+          userAttempt = t.attempts.find(a => 
+            a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
+          );
+          
+          if (!userAttempt && t.attempts.length === 1) {
+            userAttempt = t.attempts[0];
+          }
+        }
+        
+        const score = userAttempt ? userAttempt.score || 0 : (t.score || t.userScore || 0);
+        const passingScore = t.minimumPassingScore || t.passingScore || 70;
+        return score < passingScore;
       });
     }
 
     // Sort
     if (sortBy === 'recent') {
-      filtered.sort((a, b) => new Date(b.endDate) - new Date(a.endDate));
+      filtered.sort((a, b) => new Date(b.endDate || b.completedAt) - new Date(a.endDate || a.completedAt));
     } else if (sortBy === 'oldest') {
-      filtered.sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+      filtered.sort((a, b) => new Date(a.endDate || a.completedAt) - new Date(b.endDate || b.completedAt));
     } else if (sortBy === 'score-high') {
       filtered.sort((a, b) => {
-        const scoreA = a.attempts?.find(att => att.user?.id)?.score || 0;
-        const scoreB = b.attempts?.find(att => att.user?.id)?.score || 0;
-        return scoreB - scoreA;
+        const getScore = (tournament) => {
+          let userAttempt = null;
+          if (tournament.attempts && Array.isArray(tournament.attempts)) {
+            userAttempt = tournament.attempts.find(att => 
+              att.user && (att.user.id === user?.id || att.user.id === parseInt(user?.id))
+            );
+            if (!userAttempt && tournament.attempts.length === 1) {
+              userAttempt = tournament.attempts[0];
+            }
+          }
+          return userAttempt ? userAttempt.score || 0 : (tournament.score || tournament.userScore || 0);
+        };
+        
+        return getScore(b) - getScore(a);
       });
     } else if (sortBy === 'score-low') {
       filtered.sort((a, b) => {
-        const scoreA = a.attempts?.find(att => att.user?.id)?.score || 0;
-        const scoreB = b.attempts?.find(att => att.user?.id)?.score || 0;
-        return scoreA - scoreB;
+        const getScore = (tournament) => {
+          let userAttempt = null;
+          if (tournament.attempts && Array.isArray(tournament.attempts)) {
+            userAttempt = tournament.attempts.find(att => 
+              att.user && (att.user.id === user?.id || att.user.id === parseInt(user?.id))
+            );
+            if (!userAttempt && tournament.attempts.length === 1) {
+              userAttempt = tournament.attempts[0];
+            }
+          }
+          return userAttempt ? userAttempt.score || 0 : (tournament.score || tournament.userScore || 0);
+        };
+        
+        return getScore(a) - getScore(b);
       });
     }
 
@@ -120,12 +275,32 @@ const PlayerHistory = () => {
   };
 
   const TournamentHistoryCard = ({ tournament }) => {
-    const userAttempt = tournament.attempts?.find(a => a.user?.id);
-    const score = userAttempt ? userAttempt.score : 0;
-    const totalQuestions = userAttempt ? userAttempt.totalQuestions : 10;
-    const percentage = Math.round((score / totalQuestions) * 100);
-    const passed = score >= tournament.minimumPassingScore;
-    const completedDate = userAttempt ? new Date(userAttempt.completedAt) : new Date(tournament.endDate);
+    // Find user's attempt with improved logic
+    let userAttempt = null;
+    
+    if (tournament.attempts && Array.isArray(tournament.attempts)) {
+      // Try to find by user ID
+      userAttempt = tournament.attempts.find(a => 
+        a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
+      );
+      
+      // If no user ID match and only one attempt, assume it's the user's
+      if (!userAttempt && tournament.attempts.length === 1) {
+        userAttempt = tournament.attempts[0];
+      }
+    }
+    
+    // Get score and details
+    const score = userAttempt ? userAttempt.score || 0 : (tournament.score || tournament.userScore || 0);
+    const totalQuestions = userAttempt ? userAttempt.totalQuestions || 10 : (tournament.totalQuestions || 10);
+    const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
+    const passingScore = tournament.minimumPassingScore || tournament.passingScore || 70;
+    const passed = percentage >= passingScore;
+    
+    // Get completion date
+    const completedDate = userAttempt && userAttempt.completedAt 
+      ? new Date(userAttempt.completedAt)
+      : new Date(tournament.endDate || tournament.completedAt || Date.now());
 
     return (
       <div className={`card hover:shadow-lg transition-shadow border-l-4 ${
@@ -134,14 +309,14 @@ const PlayerHistory = () => {
         <div className="flex justify-between items-start mb-4">
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-1">
-              <h3 className="text-lg font-semibold text-gray-900">{tournament.name}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{tournament.name || 'Unnamed Tournament'}</h3>
               {passed ? (
                 <CheckCircle className="text-green-500" size={20} />
               ) : (
                 <XCircle className="text-red-500" size={20} />
               )}
             </div>
-            <p className="text-sm text-gray-600 mb-2">{tournament.category}</p>
+            <p className="text-sm text-gray-600 mb-2">{tournament.category || 'General'}</p>
             <div className="flex items-center space-x-4 text-sm text-gray-500">
               <span className="flex items-center space-x-1">
                 <Calendar size={14} />
@@ -165,12 +340,12 @@ const PlayerHistory = () => {
         <div className="mb-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm text-gray-600">Your Score</span>
-            <span className="text-sm text-gray-600">Pass: {tournament.minimumPassingScore}%</span>
+            <span className="text-sm text-gray-600">Pass: {passingScore}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
               className={`h-2 rounded-full ${passed ? 'bg-green-500' : 'bg-red-500'}`}
-              style={{ width: `${percentage}%` }}
+              style={{ width: `${Math.min(percentage, 100)}%` }}
             ></div>
           </div>
         </div>
@@ -181,14 +356,15 @@ const PlayerHistory = () => {
             <p className={`font-medium capitalize ${
               tournament.difficulty === 'easy' ? 'text-green-600' :
               tournament.difficulty === 'medium' ? 'text-yellow-600' :
-              'text-red-600'
+              tournament.difficulty === 'hard' ? 'text-red-600' :
+              'text-gray-600'
             }`}>
-              {tournament.difficulty}
+              {tournament.difficulty || 'Medium'}
             </p>
           </div>
           <div>
             <span className="text-gray-500">Participants:</span>
-            <p className="font-medium">{tournament.attempts?.length || 0}</p>
+            <p className="font-medium">{tournament.attempts?.length || 1}</p>
           </div>
           <div>
             <span className="text-gray-500">Status:</span>
@@ -303,7 +479,15 @@ const PlayerHistory = () => {
         {/* Error Message */}
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-            {error}
+            <div className="flex justify-between items-center">
+              <span>{error}</span>
+              <button
+                onClick={fetchPlayerHistory}
+                className="ml-4 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         )}
 
