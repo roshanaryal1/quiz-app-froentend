@@ -168,7 +168,7 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  login: (credentials) => api.post('/auth/login', credentials),
+  login: (credentials) => api.post('/auth/signin', credentials),
   register: (userData) => {
     const endpoint = userData.role === 'admin' ? '/auth/signup/admin' : '/auth/signup/player';
     return api.post(endpoint, userData);
