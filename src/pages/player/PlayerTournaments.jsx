@@ -20,6 +20,8 @@ const PlayerTournaments = () => {
   }, [refreshTrigger]);
 
   const fetchTournaments = async () => {
+    console.log("🔄 Fetching tournaments for player...");
+    console.log("🔄 Fetching tournaments for player...");
     try {
       setIsLoading(true);
       setError('');
