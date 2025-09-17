@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
+// src/pages/player/PlayerHistory.jsx - Fixed version with better error handling
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
 import { tournamentAPI } from '../../config/api';
-import { useAuth } from '../../contexts/AuthContext';
-import { Trophy, Calendar, Award, TrendingUp, BarChart3, Target, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { AuthContext } from '../../contexts/AuthContext';
+import { Trophy, Calendar, Award, TrendingUp, BarChart3, Target, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const PlayerHistory = () => {
-  const { user } = useAuth();
+  const { user } = useContext(AuthContext);
   const [participatedTournaments, setParticipatedTournaments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     fetchPlayerHistory();
@@ -23,562 +25,471 @@ const PlayerHistory = () => {
       setError('');
       console.log('🎯 Fetching player history...');
       
-      let response;
+      let tournamentData = [];
+      
       try {
-        // Try the dedicated participated endpoint first
-        response = await tournamentAPI.getParticipated();
-        console.log('📊 Player history response (participated):', response);
-      } catch (participatedError) {
-        console.log('⚠️ Participated endpoint failed, trying alternatives...');
+        // Method 1: Try the dedicated participated endpoint
+        console.log('📊 Trying participated tournaments endpoint...');
+        const participatedResponse = await tournamentAPI.getParticipated();
+        console.log('📊 Player history response (participated):', participatedResponse);
         
-        // Fallback 1: Try getting all tournaments and filter client-side
+        if (participatedResponse?.data && Array.isArray(participatedResponse.data)) {
+          tournamentData = participatedResponse.data;
+          console.log(`✅ Found ${tournamentData.length} participated tournaments`);
+        }
+      } catch (participatedError) {
+        console.log('⚠️ Participated endpoint failed, trying alternatives...', participatedError.message);
+        
         try {
+          // Method 2: Try getting all tournaments and check for participation
+          console.log('📊 Trying all tournaments endpoint...');
           const allTournamentsResponse = await tournamentAPI.getAll();
           console.log('📊 All tournaments response:', allTournamentsResponse);
           
-          // Filter tournaments that have user's attempts
-          const allTournaments = Array.isArray(allTournamentsResponse.data) 
-            ? allTournamentsResponse.data 
-            : [];
-            
-          const participatedTournaments = allTournaments.filter(tournament => {
-            if (!tournament.attempts || !Array.isArray(tournament.attempts)) {
-              return false;
+          let allTournaments = [];
+          if (Array.isArray(allTournamentsResponse.data)) {
+            allTournaments = allTournamentsResponse.data;
+          } else if (allTournamentsResponse.data?.tournaments) {
+            allTournaments = allTournamentsResponse.data.tournaments;
+          }
+          
+          // Filter tournaments where user has participated
+          // This requires checking if the user has scores/attempts in each tournament
+          const participatedPromises = allTournaments.map(async (tournament) => {
+            try {
+              const scoresResponse = await tournamentAPI.getScores(tournament.id);
+              const scores = scoresResponse?.data?.scores || scoresResponse?.data || [];
+              
+              // Check if current user has a score entry
+              const userScore = scores.find(score => 
+                score.userId === user?.id || 
+                score.userName === user?.username ||
+                score.playerName === user?.username
+              );
+              
+              if (userScore) {
+                return {
+                  ...tournament,
+                  userScore: userScore.score,
+                  userAttempts: userScore.attempts || 1,
+                  participationDate: userScore.participationDate || tournament.endDate,
+                  passed: userScore.passed || (userScore.score >= (tournament.passingScore || 5))
+                };
+              }
+              return null;
+            } catch (error) {
+              console.log(`Could not get scores for tournament ${tournament.id}:`, error.message);
+              return null;
             }
-            
-            // Check if user has participated
-            return tournament.attempts.some(attempt => 
-              attempt.user && (
-                attempt.user.id === user?.id || 
-                attempt.user.id === parseInt(user?.id) ||
-                attempt.user.username === user?.username
-              )
-            );
           });
           
-          response = { data: participatedTournaments };
-          console.log(`✅ Found ${participatedTournaments.length} participated tournaments (filtered)`);
+          const participatedResults = await Promise.allSettled(participatedPromises);
+          tournamentData = participatedResults
+            .filter(result => result.status === 'fulfilled' && result.value !== null)
+            .map(result => result.value);
+            
+          console.log(`✅ Found ${tournamentData.length} participated tournaments (from all tournaments)`);
+          
         } catch (allTournamentsError) {
-          console.error('❌ All fallback methods failed:', allTournamentsError);
-          throw participatedError; // Throw original error
+          console.log('⚠️ All tournaments endpoint also failed, trying past tournaments...', allTournamentsError.message);
+          
+          try {
+            // Method 3: Try getting past tournaments as fallback
+            const pastResponse = await tournamentAPI.getPast();
+            console.log('📊 Past tournaments response:', pastResponse);
+            
+            if (pastResponse?.data && Array.isArray(pastResponse.data)) {
+              tournamentData = pastResponse.data.filter(tournament => {
+                // Basic check if tournament has any indication of user participation
+                return tournament.userScore !== undefined || 
+                       tournament.participated === true ||
+                       tournament.userAttempts > 0;
+              });
+              console.log(`✅ Found ${tournamentData.length} tournaments from past endpoint`);
+            }
+          } catch (pastError) {
+            console.error('❌ All methods failed:', pastError.message);
+            throw new Error('Unable to fetch player history. Please try again later.');
+          }
         }
       }
       
-      // Handle different response structures
-      let tournaments = [];
-      if (response.data) {
-        if (Array.isArray(response.data)) {
-          tournaments = response.data;
-        } else if (response.data.tournaments) {
-          tournaments = response.data.tournaments;
-        } else if (response.data.content) {
-          tournaments = response.data.content;
-        } else if (response.data.data) {
-          tournaments = response.data.data;
-        }
+      // Sort and set the data
+      const sortedData = sortTournaments(tournamentData, sortBy);
+      setParticipatedTournaments(sortedData);
+      
+      if (sortedData.length === 0) {
+        setError('No tournament history found. Start participating in tournaments to see your history here!');
       }
       
-      console.log(`✅ Final result: ${tournaments.length} participated tournaments`);
-      setParticipatedTournaments(tournaments);
-      
-      if (tournaments.length === 0) {
-        setError('No tournament history found. Start participating in tournaments to see your progress here!');
-      }
     } catch (error) {
       console.error('❌ Error fetching player history:', error);
-      
-      // Check if it's an authentication error
-      if (error.response?.status === 401) {
-        setError('Please log in to view your tournament history.');
-      } else if (error.response?.status === 403) {
-        setError('You do not have permission to view tournament history.');
-      } else if (error.response?.status === 404) {
-        setError('Tournament history service not available. Please try again later.');
-      } else {
-        setError('Failed to fetch tournament history. Please check your connection and try again.');
-      }
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to load tournament history';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const sortTournaments = (tournaments, sortType) => {
+    const sorted = [...tournaments];
+    
+    switch (sortType) {
+      case 'recent':
+        return sorted.sort((a, b) => new Date(b.participationDate || b.endDate || b.createdAt) - new Date(a.participationDate || a.endDate || a.createdAt));
+      case 'oldest':
+        return sorted.sort((a, b) => new Date(a.participationDate || a.endDate || a.createdAt) - new Date(b.participationDate || b.endDate || b.createdAt));
+      case 'score-high':
+        return sorted.sort((a, b) => (b.userScore || 0) - (a.userScore || 0));
+      case 'score-low':
+        return sorted.sort((a, b) => (a.userScore || 0) - (b.userScore || 0));
+      case 'name':
+        return sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      default:
+        return sorted;
+    }
+  };
+
+  const filterTournaments = (tournaments, filterType) => {
+    switch (filterType) {
+      case 'passed':
+        return tournaments.filter(t => t.passed === true || (t.userScore || 0) >= (t.passingScore || 5));
+      case 'failed':
+        return tournaments.filter(t => t.passed === false || (t.userScore || 0) < (t.passingScore || 5));
+      case 'high-score':
+        return tournaments.filter(t => (t.userScore || 0) >= 8);
+      default:
+        return tournaments;
+    }
+  };
+
+  const handleSortChange = (newSortBy) => {
+    setSortBy(newSortBy);
+    const sorted = sortTournaments(participatedTournaments, newSortBy);
+    setParticipatedTournaments(sorted);
+  };
+
+  const handleFilterChange = (newFilter) => {
+    setFilter(newFilter);
+  };
+
+  const handleRetry = () => {
+    setRetryCount(prev => prev + 1);
+    fetchPlayerHistory();
+  };
+
+  const getScoreColor = (score, passingScore = 5) => {
+    if (score >= 9) return 'text-green-600 bg-green-50';
+    if (score >= 7) return 'text-blue-600 bg-blue-50';
+    if (score >= passingScore) return 'text-yellow-600 bg-yellow-50';
+    return 'text-red-600 bg-red-50';
+  };
+
+  const getStatusBadge = (tournament) => {
+    const score = tournament.userScore || 0;
+    const passingScore = tournament.passingScore || 5;
+    const passed = tournament.passed !== undefined ? tournament.passed : score >= passingScore;
+    
+    if (passed) {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Passed
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+          <XCircle className="w-3 h-3 mr-1" />
+          Failed
+        </span>
+      );
+    }
+  };
+
   const calculateStats = () => {
     if (participatedTournaments.length === 0) {
-      return {
-        totalParticipated: 0,
-        totalPassed: 0,
-        averageScore: 0,
-        bestScore: 0,
-        passRate: 0,
-        favoriteCategory: 'None'
-      };
+      return { totalParticipated: 0, averageScore: 0, passedCount: 0, passRate: 0, bestScore: 0 };
     }
 
-    const tournaments = participatedTournaments;
-    const totalParticipated = tournaments.length;
-    
-    // Get scores from attempts - find current user's attempts
-    const scores = tournaments.map(t => {
-      // Try different ways to find user's attempt
-      let userAttempt = null;
-      
-      if (t.attempts && Array.isArray(t.attempts)) {
-        // Try to find by user ID
-        userAttempt = t.attempts.find(a => 
-          a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
-        );
-        
-        // If no user ID match, check if there's only one attempt (likely the user's)
-        if (!userAttempt && t.attempts.length === 1) {
-          userAttempt = t.attempts[0];
-        }
-      }
-      
-      // If no attempts array, check if score is directly on tournament
-      if (!userAttempt && (t.score !== undefined || t.userScore !== undefined)) {
-        return t.score || t.userScore || 0;
-      }
-      
-      return userAttempt ? userAttempt.score || 0 : 0;
-    });
+    const totalParticipated = participatedTournaments.length;
+    const totalScore = participatedTournaments.reduce((sum, t) => sum + (t.userScore || 0), 0);
+    const averageScore = totalScore / totalParticipated;
+    const passedCount = participatedTournaments.filter(t => {
+      const score = t.userScore || 0;
+      const passingScore = t.passingScore || 5;
+      return t.passed !== undefined ? t.passed : score >= passingScore;
+    }).length;
+    const passRate = (passedCount / totalParticipated) * 100;
+    const bestScore = Math.max(...participatedTournaments.map(t => t.userScore || 0));
 
-    const passedTournaments = tournaments.filter(t => {
-      let userAttempt = null;
-      
-      if (t.attempts && Array.isArray(t.attempts)) {
-        userAttempt = t.attempts.find(a => 
-          a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
-        );
-        
-        if (!userAttempt && t.attempts.length === 1) {
-          userAttempt = t.attempts[0];
-        }
-      }
-      
-      const score = userAttempt ? userAttempt.score || 0 : (t.score || t.userScore || 0);
-      const passingScore = t.minimumPassingScore || t.passingScore || 70;
-      return score >= passingScore;
-    });
-
-    const totalPassed = passedTournaments.length;
-    const averageScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
-    const bestScore = scores.length > 0 ? Math.max(...scores) : 0;
-    const passRate = totalParticipated > 0 ? Math.round((totalPassed / totalParticipated) * 100) : 0;
-
-    // Calculate favorite category
-    const categoryCount = {};
-    tournaments.forEach(t => {
-      const category = t.category || 'General';
-      categoryCount[category] = (categoryCount[category] || 0) + 1;
-    });
-    
-    const favoriteCategory = Object.keys(categoryCount).length > 0 
-      ? Object.keys(categoryCount).reduce((a, b) => 
-          categoryCount[a] > categoryCount[b] ? a : b, 'None'
-        )
-      : 'None';
-
-    return {
-      totalParticipated,
-      totalPassed,
-      averageScore,
-      bestScore,
-      passRate,
-      favoriteCategory
-    };
-  };
-
-  const getFilteredAndSortedTournaments = () => {
-    let filtered = [...participatedTournaments];
-
-    // Filter
-    if (filter === 'passed') {
-      filtered = filtered.filter(t => {
-        let userAttempt = null;
-        
-        if (t.attempts && Array.isArray(t.attempts)) {
-          userAttempt = t.attempts.find(a => 
-            a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
-          );
-          
-          if (!userAttempt && t.attempts.length === 1) {
-            userAttempt = t.attempts[0];
-          }
-        }
-        
-        const score = userAttempt ? userAttempt.score || 0 : (t.score || t.userScore || 0);
-        const passingScore = t.minimumPassingScore || t.passingScore || 70;
-        return score >= passingScore;
-      });
-    } else if (filter === 'failed') {
-      filtered = filtered.filter(t => {
-        let userAttempt = null;
-        
-        if (t.attempts && Array.isArray(t.attempts)) {
-          userAttempt = t.attempts.find(a => 
-            a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
-          );
-          
-          if (!userAttempt && t.attempts.length === 1) {
-            userAttempt = t.attempts[0];
-          }
-        }
-        
-        const score = userAttempt ? userAttempt.score || 0 : (t.score || t.userScore || 0);
-        const passingScore = t.minimumPassingScore || t.passingScore || 70;
-        return score < passingScore;
-      });
-    }
-
-    // Sort
-    if (sortBy === 'recent') {
-      filtered.sort((a, b) => new Date(b.endDate || b.completedAt) - new Date(a.endDate || a.completedAt));
-    } else if (sortBy === 'oldest') {
-      filtered.sort((a, b) => new Date(a.endDate || a.completedAt) - new Date(b.endDate || b.completedAt));
-    } else if (sortBy === 'score-high') {
-      filtered.sort((a, b) => {
-        const getScore = (tournament) => {
-          let userAttempt = null;
-          if (tournament.attempts && Array.isArray(tournament.attempts)) {
-            userAttempt = tournament.attempts.find(att => 
-              att.user && (att.user.id === user?.id || att.user.id === parseInt(user?.id))
-            );
-            if (!userAttempt && tournament.attempts.length === 1) {
-              userAttempt = tournament.attempts[0];
-            }
-          }
-          return userAttempt ? userAttempt.score || 0 : (tournament.score || tournament.userScore || 0);
-        };
-        
-        return getScore(b) - getScore(a);
-      });
-    } else if (sortBy === 'score-low') {
-      filtered.sort((a, b) => {
-        const getScore = (tournament) => {
-          let userAttempt = null;
-          if (tournament.attempts && Array.isArray(tournament.attempts)) {
-            userAttempt = tournament.attempts.find(att => 
-              att.user && (att.user.id === user?.id || att.user.id === parseInt(user?.id))
-            );
-            if (!userAttempt && tournament.attempts.length === 1) {
-              userAttempt = tournament.attempts[0];
-            }
-          }
-          return userAttempt ? userAttempt.score || 0 : (tournament.score || tournament.userScore || 0);
-        };
-        
-        return getScore(a) - getScore(b);
-      });
-    }
-
-    return filtered;
-  };
-
-  const TournamentHistoryCard = ({ tournament }) => {
-    // Find user's attempt with improved logic
-    let userAttempt = null;
-    
-    if (tournament.attempts && Array.isArray(tournament.attempts)) {
-      // Try to find by user ID
-      userAttempt = tournament.attempts.find(a => 
-        a.user && (a.user.id === user?.id || a.user.id === parseInt(user?.id))
-      );
-      
-      // If no user ID match and only one attempt, assume it's the user's
-      if (!userAttempt && tournament.attempts.length === 1) {
-        userAttempt = tournament.attempts[0];
-      }
-    }
-    
-    // Get score and details
-    const score = userAttempt ? userAttempt.score || 0 : (tournament.score || tournament.userScore || 0);
-    const totalQuestions = userAttempt ? userAttempt.totalQuestions || 10 : (tournament.totalQuestions || 10);
-    const percentage = totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 0;
-    const passingScore = tournament.minimumPassingScore || tournament.passingScore || 70;
-    const passed = percentage >= passingScore;
-    
-    // Get completion date
-    const completedDate = userAttempt && userAttempt.completedAt 
-      ? new Date(userAttempt.completedAt)
-      : new Date(tournament.endDate || tournament.completedAt || Date.now());
-
-    return (
-      <div className={`card hover:shadow-lg transition-shadow border-l-4 ${
-        passed ? 'border-l-green-500' : 'border-l-red-500'
-      }`}>
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <div className="flex items-center space-x-2 mb-1">
-              <h3 className="text-lg font-semibold text-gray-900">{tournament.name || 'Unnamed Tournament'}</h3>
-              {passed ? (
-                <CheckCircle className="text-green-500" size={20} />
-              ) : (
-                <XCircle className="text-red-500" size={20} />
-              )}
-            </div>
-            <p className="text-sm text-gray-600 mb-2">{tournament.category || 'General'}</p>
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
-              <span className="flex items-center space-x-1">
-                <Calendar size={14} />
-                <span>{completedDate.toLocaleDateString()}</span>
-              </span>
-              <span className="flex items-center space-x-1">
-                <Clock size={14} />
-                <span>{completedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-              </span>
-            </div>
-          </div>
-
-          <div className="text-right">
-            <div className={`text-2xl font-bold ${passed ? 'text-green-600' : 'text-red-600'}`}>
-              {percentage}%
-            </div>
-            <div className="text-sm text-gray-500">{score}/{totalQuestions}</div>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-gray-600">Your Score</span>
-            <span className="text-sm text-gray-600">Pass: {passingScore}%</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className={`h-2 rounded-full ${passed ? 'bg-green-500' : 'bg-red-500'}`}
-              style={{ width: `${Math.min(percentage, 100)}%` }}
-            ></div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4 text-center text-sm">
-          <div>
-            <span className="text-gray-500">Difficulty:</span>
-            <p className={`font-medium capitalize ${
-              tournament.difficulty === 'easy' ? 'text-green-600' :
-              tournament.difficulty === 'medium' ? 'text-yellow-600' :
-              tournament.difficulty === 'hard' ? 'text-red-600' :
-              'text-gray-600'
-            }`}>
-              {tournament.difficulty || 'Medium'}
-            </p>
-          </div>
-          <div>
-            <span className="text-gray-500">Participants:</span>
-            <p className="font-medium">{tournament.attempts?.length || 1}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Status:</span>
-            <p className={`font-medium ${passed ? 'text-green-600' : 'text-red-600'}`}>
-              {passed ? 'Passed' : 'Failed'}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return { totalParticipated, averageScore, passedCount, passRate, bestScore };
   };
 
   const stats = calculateStats();
-  const filteredTournaments = getFilteredAndSortedTournaments();
+  const filteredTournaments = filterTournaments(participatedTournaments, filter);
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" text="Loading your history..." />
+        <LoadingSpinner size="lg" text="Loading your tournament history..." />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="bg-purple-100 p-3 rounded-full">
-              <BarChart3 className="text-purple-600" size={24} />
-            </div>
+        <div className="bg-white rounded-lg shadow-sm mb-8 p-6">
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">My Tournament History</h1>
-              <p className="text-gray-600 mt-1">Track your quiz journey and progress</p>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                <Trophy className="w-8 h-8 mr-3 text-yellow-500" />
+                My Tournament History
+              </h1>
+              <p className="text-gray-600 mt-2">Track your quiz performance and achievements</p>
             </div>
+            <button
+              onClick={handleRetry}
+              className="btn-secondary flex items-center"
+              disabled={isLoading}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
           </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="bg-blue-100 p-3 rounded-full">
-                  <Trophy className="text-blue-600" size={20} />
-                </div>
-                <div className="ml-4">
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalParticipated}</p>
-                  <p className="text-gray-600">Tournaments</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="bg-green-100 p-3 rounded-full">
-                  <CheckCircle className="text-green-600" size={20} />
-                </div>
-                <div className="ml-4">
-                  <p className="text-2xl font-bold text-gray-900">{stats.passRate}%</p>
-                  <p className="text-gray-600">Pass Rate</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="bg-amber-100 p-3 rounded-full">
-                  <Target className="text-amber-600" size={20} />
-                </div>
-                <div className="ml-4">
-                  <p className="text-2xl font-bold text-gray-900">{stats.averageScore}</p>
-                  <p className="text-gray-600">Avg Score</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="bg-purple-100 p-3 rounded-full">
-                  <TrendingUp className="text-purple-600" size={20} />
-                </div>
-                <div className="ml-4">
-                  <p className="text-2xl font-bold text-gray-900">{stats.bestScore}</p>
-                  <p className="text-gray-600">Best Score</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Stats */}
-          {stats.totalParticipated > 0 && (
-            <div className="bg-white rounded-lg shadow p-6 mb-8">
-              <h3 className="font-medium text-gray-900 mb-4">Performance Overview</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-green-600 mb-2">{stats.totalPassed}</div>
-                  <div className="text-sm text-gray-600">Tournaments Passed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-red-600 mb-2">{stats.totalParticipated - stats.totalPassed}</div>
-                  <div className="text-sm text-gray-600">Tournaments Failed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-purple-600 mb-2">{stats.favoriteCategory}</div>
-                  <div className="text-sm text-gray-600">Favorite Category</div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Error Message */}
+        {/* Error State */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-            <div className="flex justify-between items-center">
-              <span>{error}</span>
-              <button
-                onClick={fetchPlayerHistory}
-                className="ml-4 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-              >
-                Retry
-              </button>
+          <div className="bg-white rounded-lg shadow-sm mb-8 p-6">
+            <div className="text-center">
+              <div className="text-red-500 mb-4">
+                <XCircle className="w-12 h-12 mx-auto" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load History</h3>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <div className="space-x-4">
+                <button onClick={handleRetry} className="btn-primary">
+                  Try Again
+                </button>
+                <Link to="/player/tournaments" className="btn-secondary">
+                  Browse Tournaments
+                </Link>
+              </div>
             </div>
           </div>
         )}
 
-        {participatedTournaments.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="bg-gray-100 rounded-full p-6 w-24 h-24 flex items-center justify-center mx-auto mb-6">
-              <Trophy className="text-gray-400" size={32} />
+        {/* Stats Cards */}
+        {!error && participatedTournaments.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <BarChart3 className="w-8 h-8 text-blue-500" />
+                <div className="ml-4">
+                  <p className="text-sm text-gray-600">Total Participated</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalParticipated}</p>
+                </div>
+              </div>
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No Tournament History</h3>
-            <p className="text-gray-600 mb-6">
-              You haven't participated in any tournaments yet. Start your quiz journey today!
-            </p>
-            <Link to="/player/tournaments" className="btn-primary">
-              Browse Tournaments
-            </Link>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <Target className="w-8 h-8 text-green-500" />
+                <div className="ml-4">
+                  <p className="text-sm text-gray-600">Average Score</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.averageScore.toFixed(1)}/10</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <Award className="w-8 h-8 text-yellow-500" />
+                <div className="ml-4">
+                  <p className="text-sm text-gray-600">Best Score</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.bestScore}/10</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <CheckCircle className="w-8 h-8 text-green-500" />
+                <div className="ml-4">
+                  <p className="text-sm text-gray-600">Passed</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.passedCount}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center">
+                <TrendingUp className="w-8 h-8 text-purple-500" />
+                <div className="ml-4">
+                  <p className="text-sm text-gray-600">Pass Rate</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.passRate.toFixed(1)}%</p>
+                </div>
+              </div>
+            </div>
           </div>
-        ) : (
-          <>
-            {/* Filters and Sort */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        )}
+
+        {/* Filters and Controls */}
+        {!error && participatedTournaments.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm mb-8 p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
               <div className="flex flex-wrap gap-2">
+                <span className="text-sm font-medium text-gray-700 mr-2">Filter:</span>
                 {[
-                  { key: 'all', label: 'All', count: participatedTournaments.length },
-                  { key: 'passed', label: 'Passed', count: stats.totalPassed },
-                  { key: 'failed', label: 'Failed', count: stats.totalParticipated - stats.totalPassed }
-                ].map(tab => (
+                  { key: 'all', label: 'All Tournaments' },
+                  { key: 'passed', label: 'Passed' },
+                  { key: 'failed', label: 'Failed' },
+                  { key: 'high-score', label: 'High Score (8+)' }
+                ].map(filterOption => (
                   <button
-                    key={tab.key}
-                    onClick={() => setFilter(tab.key)}
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                      filter === tab.key
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                    key={filterOption.key}
+                    onClick={() => handleFilterChange(filterOption.key)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                      filter === filterOption.key
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
-                    {tab.label} ({tab.count})
+                    {filterOption.label}
                   </button>
                 ))}
               </div>
 
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="form-input text-sm"
-              >
-                <option value="recent">Most Recent</option>
-                <option value="oldest">Oldest First</option>
-                <option value="score-high">Highest Score</option>
-                <option value="score-low">Lowest Score</option>
-              </select>
-            </div>
-
-            {/* Tournament History Grid */}
-            {filteredTournaments.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-600">No tournaments match your current filter.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredTournaments.map(tournament => (
-                  <TournamentHistoryCard key={tournament.id} tournament={tournament} />
-                ))}
-              </div>
-            )}
-
-            {/* Progress Tips */}
-            <div className="mt-12 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg p-6">
-              <h3 className="font-medium text-purple-900 mb-4 flex items-center space-x-2">
-                <TrendingUp size={20} />
-                <span>Improve Your Performance</span>
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-purple-800">
-                <div>
-                  <h4 className="font-medium mb-2">Study Tips</h4>
-                  <ul className="space-y-1">
-                    <li>• Focus on your weakest categories</li>
-                    <li>• Review questions after each tournament</li>
-                    <li>• Practice regularly to improve scores</li>
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="font-medium mb-2">Strategy</h4>
-                  <ul className="space-y-1">
-                    <li>• Start with easier tournaments to build confidence</li>
-                    <li>• Take your time to read questions carefully</li>
-                    <li>• Participate consistently to track progress</li>
-                  </ul>
-                </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-gray-700">Sort by:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => handleSortChange(e.target.value)}
+                  className="form-input py-1 px-2 text-sm"
+                >
+                  <option value="recent">Most Recent</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="score-high">Highest Score</option>
+                  <option value="score-low">Lowest Score</option>
+                  <option value="name">Tournament Name</option>
+                </select>
               </div>
             </div>
-          </>
+          </div>
+        )}
+
+        {/* Tournament History List */}
+        {!error && filteredTournaments.length > 0 ? (
+          <div className="space-y-4">
+            {filteredTournaments.map((tournament) => (
+              <div key={tournament.id} className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                <div className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{tournament.name}</h3>
+                        {getStatusBadge(tournament)}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600">
+                        <div className="flex items-center">
+                          <Calendar className="w-4 h-4 mr-2" />
+                          <span>
+                            {tournament.participationDate 
+                              ? new Date(tournament.participationDate).toLocaleDateString()
+                              : tournament.endDate 
+                                ? new Date(tournament.endDate).toLocaleDateString()
+                                : 'Date not available'
+                            }
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <Target className="w-4 h-4 mr-2" />
+                          <span>Category: {tournament.category || 'General'}</span>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <Clock className="w-4 h-4 mr-2" />
+                          <span>Difficulty: {tournament.difficulty || 'Mixed'}</span>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <Award className="w-4 h-4 mr-2" />
+                          <span>Passing Score: {tournament.passingScore || 5}/10</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-right ml-6">
+                      <div className={`inline-flex items-center px-3 py-2 rounded-lg font-bold text-lg ${getScoreColor(tournament.userScore || 0, tournament.passingScore || 5)}`}>
+                        {tournament.userScore || 0}/10
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {tournament.userAttempts && tournament.userAttempts > 1 
+                          ? `${tournament.userAttempts} attempts` 
+                          : '1 attempt'
+                        }
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      {tournament.description && (
+                        <p className="line-clamp-2">{tournament.description}</p>
+                      )}
+                    </div>
+                    
+                    <div className="flex space-x-2">
+                      <Link
+                        to={`/player/tournaments/${tournament.id}/scores`}
+                        className="btn-secondary text-xs py-1 px-3"
+                      >
+                        View Scores
+                      </Link>
+                      
+                      {/* Show retake button if tournament is still ongoing */}
+                      {tournament.status === 'ongoing' && (
+                        <Link
+                          to={`/player/tournaments/${tournament.id}/play`}
+                          className="btn-primary text-xs py-1 px-3"
+                        >
+                          Retake Quiz
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !error && participatedTournaments.length > 0 && filteredTournaments.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No tournaments match your filter</h3>
+            <p className="text-gray-600 mb-4">Try adjusting your filter criteria to see more results.</p>
+            <button
+              onClick={() => handleFilterChange('all')}
+              className="btn-primary"
+            >
+              Show All Tournaments
+            </button>
+          </div>
+        ) : !error && participatedTournaments.length === 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+            <Trophy className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Tournament History Yet</h3>
+            <p className="text-gray-600 mb-6">
+              You haven't participated in any tournaments yet. Start your quiz journey today!
+            </p>
+            <Link to="/player/tournaments" className="btn-primary">
+              Browse Available Tournaments
+            </Link>
+          </div>
         )}
       </div>
     </div>
