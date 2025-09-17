@@ -22,7 +22,7 @@ let tournamentCache = null;
 let cacheTime = null;
 const CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
 
-const clearTournamentCache = () => {
+export const clearTournamentCache = () => {
   tournamentCache = null;
   cacheTime = null;
   console.log('🗑️ Tournament cache cleared');
@@ -425,3 +425,50 @@ export const testAPI = {
 };
 
 export default api;
+// Health check with multiple endpoints
+export const checkApiHealth = async () => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const healthEndpoints = ['/health', '/api/health', '/actuator/health', '/test/health'];
+    
+    for (const endpoint of healthEndpoints) {
+      try {
+        const response = await fetch(`${currentApiUrl}${endpoint}`, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        clearTimeout(timeoutId);
+        if (response.ok) {
+          console.log(`✅ Health check successful on: ${endpoint}`);
+          return true;
+        }
+      } catch (endpointError) {
+        continue;
+      }
+    }
+    return false;
+  } catch (error) {
+    return false;
+  }
+};
+
+// Warm up API
+export const warmupApi = async () => {
+  try {
+    const response = await fetch(`${currentApiUrl}/health`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+};
+
+// Export current API URL function  
+
+// Health check with multiple endpoints

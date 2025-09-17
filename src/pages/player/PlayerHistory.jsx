@@ -1,13 +1,13 @@
 // src/pages/player/PlayerHistory.jsx - Fixed version with better error handling
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { tournamentAPI } from '../../config/api';
-import { AuthContext } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { Trophy, Calendar, Award, TrendingUp, BarChart3, Target, Clock, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const PlayerHistory = () => {
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
   const [participatedTournaments, setParticipatedTournaments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');

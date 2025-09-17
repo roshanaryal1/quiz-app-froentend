@@ -1,8 +1,8 @@
 // src/pages/player/TournamentPlay.jsx - Fixed quiz participation
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { tournamentAPI } from '../../config/api';
-import { AuthContext } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -20,7 +20,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 const TournamentPlay = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
 
   // State management
   const [tournament, setTournament] = useState(null);
