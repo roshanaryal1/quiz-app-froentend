@@ -1,4 +1,3 @@
-// Fixed App.jsx with all necessary routes and imports
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
@@ -26,20 +25,23 @@ import PlayerHistory from './pages/player/PlayerHistory';
 import OngoingTournaments from './pages/player/OngoingTournaments';
 import TournamentResults from './pages/player/TournamentResults';
 
-// Diagnostic Pages
-import AuthDiagnostics from './pages/AuthDiagnostics';
-import Diagnostics from './pages/Diagnostics';
+// Diagnostic Pages - ONLY IN DEVELOPMENT
+let AuthDiagnostics, Diagnostics;
+if (import.meta.env.DEV) {
+  AuthDiagnostics = React.lazy(() => import('./pages/AuthDiagnostics'));
+  Diagnostics = React.lazy(() => import('./pages/Diagnostics'));
+}
 
 // Error Pages
 import NotFound from './pages/NotFound';
 import Unauthorized from './pages/Unauthorized';
 
-// Debug component for development
+// Debug component for development only
 const DebugInfo = () => {
   const token = localStorage.getItem('token');
   const user = localStorage.getItem('user');
   
-  if (import.meta.env.NODE_ENV === 'production') return null;
+  if (import.meta.env.PROD) return null;
   
   return (
     <div className="fixed bottom-0 right-0 bg-black text-white text-xs p-2 z-50 max-w-xs">
@@ -68,11 +70,15 @@ function App() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/unauthorized" element={<Unauthorized />} />
               
-              {/* Diagnostic Routes */}
-              <Route path="/auth-diagnostics" element={<AuthDiagnostics />} />
-              <Route path="/diagnostics" element={<Diagnostics />} />
+              {/* DIAGNOSTIC ROUTES - DEVELOPMENT ONLY */}
+              {import.meta.env.DEV && (
+                <React.Suspense fallback={<div>Loading...</div>}>
+                  <Route path="/auth-diagnostics" element={<AuthDiagnostics />} />
+                  <Route path="/diagnostics" element={<Diagnostics />} />
+                </React.Suspense>
+              )}
               
-              {/* Protected routes - Any authenticated user */}
+              {/* Protected routes */}
               <Route 
                 path="/profile" 
                 element={
@@ -82,7 +88,7 @@ function App() {
                 } 
               />
               
-              {/* Admin-only routes */}
+              {/* Admin routes */}
               <Route 
                 path="/admin/tournaments" 
                 element={
@@ -108,7 +114,7 @@ function App() {
                 } 
               />
               
-              {/* Player-only routes */}
+              {/* Player routes */}
               <Route 
                 path="/player/tournaments" 
                 element={
@@ -154,8 +160,7 @@ function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
             
-            {/* Debug info in development */}
-            {import.meta.env.DEV && <DebugInfo />}
+            <DebugInfo />
           </div>
         </Router>
       </AuthProvider>
