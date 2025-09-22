@@ -17,10 +17,10 @@ const LikeButton = ({ tournamentId, initialLiked = false, initialLikesCount = 0,
   }, [tournamentId]);
 
   const fetchLikeStatus = async () => {
-    if (!user || !tournamentId) return;
+    if (!tournamentId) return;
     
     try {
-      // Get likes count
+      // Get likes count - this is public information
       const likesResponse = await tournamentAPI.getLikes(tournamentId);
       const count = likesResponse?.data?.count ?? likesResponse?.data ?? 0;
       setLikesCount(count);

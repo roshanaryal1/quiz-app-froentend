@@ -1,10 +1,5 @@
 # 🎯 Quiz Tournament Frontend
 
-[![React](https://img.shields.io/badge/React-18-blue?style=flat-square&logo=react)](https://reactjs.org/)
-[![Vite](https://img.shields.io/badge/Vite-5.0-646CFF?style=flat-square&logo=vite)](https://vitejs.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.0-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
-[![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com/)
-
 > **A modern React frontend application for the Quiz Tournament platform, providing intuitive user interfaces for both admin and player roles. Built with React 18, Vite, and Tailwind CSS for optimal performance and user experience.**
 
 ## 🌐 **Live Demo**
