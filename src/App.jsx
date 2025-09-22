@@ -25,13 +25,6 @@ import PlayerHistory from './pages/player/PlayerHistory';
 import OngoingTournaments from './pages/player/OngoingTournaments';
 import TournamentResults from './pages/player/TournamentResults';
 
-// Diagnostic Pages - ONLY IN DEVELOPMENT
-let AuthDiagnostics, Diagnostics;
-if (import.meta.env.DEV) {
-  AuthDiagnostics = React.lazy(() => import('./pages/AuthDiagnostics'));
-  Diagnostics = React.lazy(() => import('./pages/Diagnostics'));
-}
-
 // Error Pages
 import NotFound from './pages/NotFound';
 import Unauthorized from './pages/Unauthorized';
@@ -61,104 +54,98 @@ function App() {
           <div className="min-h-screen bg-gray-50">
             <Navigation />
             
-            <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/unauthorized" element={<Unauthorized />} />
-              
-              {/* DIAGNOSTIC ROUTES - DEVELOPMENT ONLY */}
-              {import.meta.env.DEV && (
-                <React.Suspense fallback={<div>Loading...</div>}>
-                  <Route path="/auth-diagnostics" element={<AuthDiagnostics />} />
-                  <Route path="/diagnostics" element={<Diagnostics />} />
-                </React.Suspense>
-              )}
-              
-              {/* Protected routes */}
-              <Route 
-                path="/profile" 
-                element={
-                  <ProtectedRoute>
-                    <Profile />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Admin routes */}
-              <Route 
-                path="/admin/tournaments" 
-                element={
-                  <ProtectedRoute requiredRole="ADMIN">
-                    <AdminTournaments />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/create-tournament" 
-                element={
-                  <ProtectedRoute requiredRole="ADMIN">
-                    <CreateTournament />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/edit-tournament/:id" 
-                element={
-                  <ProtectedRoute requiredRole="ADMIN">
-                    <EditTournament />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Player routes */}
-              <Route 
-                path="/player/tournaments" 
-                element={
-                  <ProtectedRoute requiredRole="PLAYER">
-                    <PlayerTournaments />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/player/ongoing" 
-                element={
-                  <ProtectedRoute requiredRole="PLAYER">
-                    <OngoingTournaments />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/player/tournaments/:id" 
-                element={
-                  <ProtectedRoute requiredRole="PLAYER">
-                    <TournamentPlay />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/player/tournaments/:id/results" 
-                element={
-                  <ProtectedRoute requiredRole="PLAYER">
-                    <TournamentResults />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/player/history" 
-                element={
-                  <ProtectedRoute requiredRole="PLAYER">
-                    <PlayerHistory />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* 404 route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+              <Routes>
+                {/* Public routes */}
+                <Route path="/" element={<Home />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/unauthorized" element={<Unauthorized />} />
+                
+                {/* Protected routes */}
+                <Route 
+                  path="/profile" 
+                  element={
+                    <ProtectedRoute>
+                      <Profile />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Admin routes */}
+                <Route 
+                  path="/admin/tournaments" 
+                  element={
+                    <ProtectedRoute requiredRole="ADMIN">
+                      <AdminTournaments />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/create-tournament" 
+                  element={
+                    <ProtectedRoute requiredRole="ADMIN">
+                      <CreateTournament />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/admin/edit-tournament/:id" 
+                  element={
+                    <ProtectedRoute requiredRole="ADMIN">
+                      <EditTournament />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Player routes */}
+                <Route 
+                  path="/player/tournaments" 
+                  element={
+                    <ProtectedRoute requiredRole="PLAYER">
+                      <PlayerTournaments />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/player/ongoing" 
+                  element={
+                    <ProtectedRoute requiredRole="PLAYER">
+                      <OngoingTournaments />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/player/tournaments/:id" 
+                  element={
+                    <ProtectedRoute requiredRole="PLAYER">
+                      <TournamentPlay />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/player/tournaments/:id/results" 
+                  element={
+                    <ProtectedRoute requiredRole="PLAYER">
+                      <TournamentResults />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/player/history" 
+                  element={
+                    <ProtectedRoute requiredRole="PLAYER">
+                      <PlayerHistory />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* 404 route */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </React.Suspense>
             
             <DebugInfo />
           </div>

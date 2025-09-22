@@ -96,10 +96,8 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
     try {
-      console.log('Attempting login with credentials:', { username: credentials.usernameOrEmail });
       
       const response = await authAPI.login(credentials);
-      console.log('Login response received:', response);
       
       // Access response.data properly
       const responseData = response.data;

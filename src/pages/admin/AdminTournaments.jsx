@@ -22,8 +22,6 @@ const AdminTournaments = () => {
   const location = useLocation();
 
   useEffect(() => {
-    console.log('🎯 AdminTournaments component mounted/updated');
-    console.log('📍 Current location:', location.pathname);
     
     // Always fetch tournaments when component mounts or location changes
     fetchTournaments(true); // Force refresh on mount
@@ -31,7 +29,6 @@ const AdminTournaments = () => {
     // Listen for tournament creation events via localStorage
     const handleStorageChange = (e) => {
       if (e.key === 'tournament_created') {
-        console.log('🎯 AdminTournaments: Tournament creation detected, refreshing...');
         fetchTournaments(true);
         localStorage.removeItem('tournament_created');
       }
@@ -49,45 +46,33 @@ const AdminTournaments = () => {
       setIsLoading(true);
       setError('');
       
-      console.log('🎯 Admin: Starting tournament fetch...');
-      console.log('🎯 Admin: Force clear cache:', forceClear);
       
       // Force clear cache if requested
       if (forceClear) {
-        console.log('🧹 Force clearing tournament cache...');
         clearTournamentCache();
       }
       
-      console.log('🎯 Admin: Fetching tournaments from API...');
       
       // Fetch tournaments with force refresh to bypass cache
       const response = await tournamentAPI.getAll(forceClear);
-      console.log('🎯 Admin: Raw tournaments response:', response);
-      console.log('🎯 Admin: Response.data:', response.data);
-      console.log('🎯 Admin: Response.data type:', typeof response.data);
       
       // Handle different possible response structures more robustly
       let tournamentsData = [];
       
       if (Array.isArray(response.data)) {
         tournamentsData = response.data;
-        console.log('🎯 Admin: Found array directly in response.data');
       } else if (response.data && response.data.tournaments) {
         tournamentsData = response.data.tournaments;
-        console.log('🎯 Admin: Found tournaments in response.data.tournaments');
       } else if (response.data && response.data.content) {
         tournamentsData = response.data.content;
-        console.log('🎯 Admin: Found tournaments in response.data.content');
       } else if (response.data && response.data.data) {
         tournamentsData = response.data.data;
-        console.log('🎯 Admin: Found tournaments in response.data.data');
       } else if (response.data) {
         // Try to find any array in the response
         const keys = Object.keys(response.data);
         for (const key of keys) {
           if (Array.isArray(response.data[key])) {
             tournamentsData = response.data[key];
-            console.log(`🎯 Admin: Found tournaments in response.data.${key}`);
             break;
           }
         }
@@ -99,8 +84,6 @@ const AdminTournaments = () => {
         tournamentsData = [];
       }
       
-      console.log(`✅ Admin: Successfully fetched ${tournamentsData.length} tournaments`);
-      console.log('📊 Admin: Tournament data sample:', tournamentsData.slice(0, 2));
       
       // Update state with fetched tournaments
       setTournaments(tournamentsData);
@@ -162,12 +145,10 @@ const AdminTournaments = () => {
 
   // Import tournaments from backup
   const handleImportTournaments = (importedTournaments) => {
-    console.log('📥 Importing tournaments:', importedTournaments);
     setTournaments(importedTournaments);
     
     // Optionally, try to sync with backend
     // Note: This is a temporary solution until proper database is set up
-    console.log('⚠️ Tournaments imported locally - they will not persist after server restart');
   };
 
   const getTournamentStatus = (tournament) => {
@@ -290,7 +271,6 @@ const AdminTournaments = () => {
               <button
                 onClick={() => {
                   // Navigate to tournament details or show more info
-                  console.log('View tournament details:', tournament.id);
                 }}
                 className="text-primary-600 hover:text-primary-800 inline-flex items-center space-x-1"
               >
@@ -348,9 +328,7 @@ const AdminTournaments = () => {
               <button
                 onClick={async () => {
                   try {
-                    console.log('Testing tournaments API...');
                     const response = await tournamentAPI.getAll();
-                    console.log('Test API Response:', response);
                     alert(`API Test: ${JSON.stringify(response.data, null, 2)}`);
                   } catch (error) {
                     console.error('Test API Error:', error);

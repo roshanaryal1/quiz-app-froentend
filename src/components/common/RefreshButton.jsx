@@ -4,7 +4,6 @@ import { clearTournamentCache } from '../../config/api';
 
 const RefreshButton = ({ onRefresh, isLoading = false, className = "" }) => {
   const handleRefresh = () => {
-    console.log('🔄 Manual refresh triggered');
     clearTournamentCache();
     if (onRefresh) onRefresh(true); // Force refresh
   };

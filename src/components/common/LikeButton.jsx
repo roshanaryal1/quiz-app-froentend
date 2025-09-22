@@ -1,11 +1,11 @@
 // src/components/common/LikeButton.jsx - Fixed tournament like functionality
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import { tournamentAPI } from '../../config/api';
-import { AuthContext } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const LikeButton = ({ tournamentId, initialLiked = false, initialLikesCount = 0, className = "" }) => {
-  const { user } = useContext(AuthContext);
+  const { user } = useAuth();
   const [isLiked, setIsLiked] = useState(initialLiked);
   const [likesCount, setLikesCount] = useState(initialLikesCount);
   const [isLoading, setIsLoading] = useState(false);

@@ -16,6 +16,7 @@ import {
   Target
 } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import LikeButton from '../../components/common/LikeButton';
 
 const TournamentPlay = () => {
   const { id } = useParams();
@@ -91,8 +92,8 @@ const TournamentPlay = () => {
         question: q.question || q.text || '',
         options: q.options || q.answers || [q.correct_answer, ...(q.incorrect_answers || [])].filter(Boolean),
         correctAnswer: q.correctAnswer || q.correct_answer || '',
-        difficulty: q.difficulty || tournament.difficulty || 'medium',
-        category: q.category || tournament.category || 'General Knowledge'
+        difficulty: q.difficulty || tournamentData?.difficulty || 'medium',
+        category: q.category || tournamentData?.category || 'General Knowledge'
       }));
       
       setQuestions(processedQuestions);
@@ -282,9 +283,14 @@ const TournamentPlay = () => {
                 You scored <span className="font-bold text-gray-900">{result.score}</span> out of <span className="font-bold text-gray-900">{questions.length}</span>
               </p>
               
-              {result.passed && (
+              <div className="text-sm text-gray-500 mt-2">
+                <span className="text-green-600 font-medium">{result.score} correct</span> • 
+                <span className="text-red-600 font-medium"> {questions.length - result.score} incorrect</span>
+              </div>
+              
+              {result.passed && tournament && (
                 <p className="text-green-600 font-medium mt-2">
-                  🎉 You passed the tournament! (Required: {tournament.passingScore || 5})
+                  🎉 You passed the tournament! (Required: {Math.round((tournament.minimumPassingScore / 10) * 100)}%)
                 </p>
               )}
             </div>
@@ -324,7 +330,15 @@ const TournamentPlay = () => {
                 </button>
               </div>
               
-              {tournament.status === 'ongoing' && (
+              {/* Like Button */}
+              <div className="flex justify-center">
+                <LikeButton
+                  tournamentId={id}
+                  className="mt-4"
+                />
+              </div>
+              
+              {tournament?.status === 'ongoing' && (
                 <button
                   onClick={() => window.location.reload()}
                   className="btn-secondary flex items-center mx-auto"
@@ -351,7 +365,7 @@ const TournamentPlay = () => {
         <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{tournament.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{tournament?.name}</h1>
               <p className="text-gray-600">
                 Question {currentQuestionIndex + 1} of {questions.length}
               </p>
@@ -540,17 +554,17 @@ const TournamentPlay = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-gray-600">Passing Score</p>
-              <p className="font-semibold text-gray-900">{tournament.passingScore || 5} out of {questions.length}</p>
+              <p className="font-semibold text-gray-900">{tournament?.passingScore || 5} out of {questions.length}</p>
             </div>
             
             <div>
               <p className="text-gray-600">Difficulty</p>
-              <p className="font-semibold text-gray-900 capitalize">{tournament.difficulty || 'Mixed'}</p>
+              <p className="font-semibold text-gray-900 capitalize">{tournament?.difficulty || 'Mixed'}</p>
             </div>
             
             <div>
               <p className="text-gray-600">Category</p>
-              <p className="font-semibold text-gray-900">{tournament.category || 'General Knowledge'}</p>
+              <p className="font-semibold text-gray-900">{tournament?.category || 'General Knowledge'}</p>
             </div>
           </div>
         </div>

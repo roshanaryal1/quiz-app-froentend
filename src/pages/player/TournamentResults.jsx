@@ -153,7 +153,7 @@ const TournamentResults = () => {
                 <div className="text-sm text-gray-600">Average Score</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{tournament.minimumPassingScore}%</div>
+                <div className="text-2xl font-bold text-purple-600">{Math.round((tournament.minimumPassingScore / 10) * 100)}%</div>
                 <div className="text-sm text-gray-600">Pass Score</div>
               </div>
             </div>
@@ -203,7 +203,7 @@ const TournamentResults = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Required to pass:</span>
-                    <span className="font-medium">{tournament.minimumPassingScore}%</span>
+                    <span className="font-medium">{Math.round((tournament.minimumPassingScore / 10) * 100)}%</span>
                   </div>
                 </div>
               </div>

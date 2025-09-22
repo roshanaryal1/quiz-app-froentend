@@ -23,7 +23,6 @@ const DatabaseStatus = () => {
     try {
       // Check backend health
       const healthResponse = await testAPI.health();
-      console.log('🏥 Health check response:', healthResponse);
 
       // Check database connection
       let dbStatus = 'unknown';
