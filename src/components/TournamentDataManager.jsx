@@ -27,7 +27,6 @@ const TournamentDataManager = ({ tournaments, onImportTournaments }) => {
       document.body.removeChild(link);
       
       URL.revokeObjectURL(url);
-      console.log('✅ Tournaments exported successfully');
     } catch (error) {
       console.error('❌ Export failed:', error);
       alert('Failed to export tournaments');
@@ -53,7 +52,6 @@ const TournamentDataManager = ({ tournaments, onImportTournaments }) => {
         
         if (importedData.tournaments && Array.isArray(importedData.tournaments)) {
           onImportTournaments(importedData.tournaments);
-          console.log(`✅ Imported ${importedData.tournaments.length} tournaments`);
           alert(`Successfully imported ${importedData.tournaments.length} tournaments!`);
         } else {
           throw new Error('Invalid file format');
@@ -79,7 +77,6 @@ const TournamentDataManager = ({ tournaments, onImportTournaments }) => {
       };
       localStorage.setItem('tournamentBackup', JSON.stringify(backupData));
       alert('Tournaments saved to browser storage!');
-      console.log('✅ Tournaments saved to localStorage');
     } catch (error) {
       console.error('❌ localStorage save failed:', error);
       alert('Failed to save to browser storage');
@@ -95,7 +92,6 @@ const TournamentDataManager = ({ tournaments, onImportTournaments }) => {
         if (parsed.tournaments && Array.isArray(parsed.tournaments)) {
           onImportTournaments(parsed.tournaments);
           alert(`Loaded ${parsed.tournaments.length} tournaments from browser storage!`);
-          console.log('✅ Tournaments loaded from localStorage');
         }
       } else {
         alert('No backup found in browser storage');

@@ -11,7 +11,7 @@ export const useTournamentPersistence = () => {
             return 'Tournament data will be preserved';
           }
         } catch (error) {
-          console.log('Error preserving tournament data:', error);
+          // Silently handle preservation errors
         }
       }
     };

@@ -54,19 +54,15 @@ const Login = () => {
     if (!isOnline) return;
     if (!formData.usernameOrEmail.trim() || !formData.password.trim()) return;
     
-    console.log('🚀 Starting login process...');
-    const startTime = Date.now();
-    
     try {
       const result = await login(formData);
       
       if (result.success) {
-        console.log(`✅ Login completed in ${Date.now() - startTime}ms`);
         // Don't wait for navigation, do it immediately
         navigate(from, { replace: true });
       }
     } catch (error) {
-      console.error(`❌ Login failed after ${Date.now() - startTime}ms:`, error);
+      console.error('Login failed:', error);
     }
   };
 

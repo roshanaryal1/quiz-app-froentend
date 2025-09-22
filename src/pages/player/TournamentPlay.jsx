@@ -61,12 +61,9 @@ const TournamentPlay = () => {
       setIsLoading(true);
       setError('');
       
-      console.log(`🎯 Loading tournament ${id} for quiz...`);
-      
       // Fetch tournament details
       const tournamentResponse = await tournamentAPI.getById(id);
       const tournamentData = tournamentResponse.data;
-      console.log('📊 Tournament data:', tournamentData);
       
       if (!tournamentData) {
         throw new Error('Tournament not found');
@@ -81,10 +78,8 @@ const TournamentPlay = () => {
       }
       
       // Fetch questions
-      console.log('❓ Fetching tournament questions...');
       const questionsResponse = await tournamentAPI.getQuestions(id);
       const questionsData = questionsResponse.data;
-      console.log('📝 Questions data:', questionsData);
       
       if (!questionsData || !Array.isArray(questionsData) || questionsData.length === 0) {
         throw new Error('No questions available for this tournament');
@@ -101,7 +96,6 @@ const TournamentPlay = () => {
       }));
       
       setQuestions(processedQuestions);
-      console.log(`✅ Loaded ${processedQuestions.length} questions`);
       
       // Initialize timer if tournament has time limit
       if (tournamentData.timeLimit) {
@@ -175,8 +169,6 @@ const TournamentPlay = () => {
       setIsSubmitting(true);
       setError('');
       
-      console.log('🎮 Submitting quiz answers...');
-      
       // Include current answer in final answers
       const finalAnswers = selectedAnswer 
         ? { ...answers, [currentQuestionIndex]: selectedAnswer } 
@@ -187,11 +179,8 @@ const TournamentPlay = () => {
       for (let i = 0; i < questions.length; i++) {
         answersArray.push(finalAnswers[i] || ''); // Use empty string for unanswered questions
       }
-
-      console.log('📤 Submitting answers:', answersArray);
       
       const response = await tournamentAPI.participate(id, { answers: answersArray });
-      console.log('✅ Participation result:', response.data);
       
       setResult(response.data);
       
@@ -199,9 +188,8 @@ const TournamentPlay = () => {
       try {
         await tournamentAPI.like(id);
         setIsLiked(true);
-        console.log('❤️ Tournament auto-liked after completion');
       } catch (likeError) {
-        console.log('⚠️ Could not auto-like tournament:', likeError.message);
+        // Silently handle auto-like failures
       }
       
     } catch (error) {

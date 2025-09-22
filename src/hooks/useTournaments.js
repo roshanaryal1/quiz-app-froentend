@@ -15,18 +15,13 @@ export const useTournaments = (autoFetch = true) => {
       setIsLoading(true);
       setError('');
       
-      console.log('🎯 useTournaments: Starting tournament fetch...');
-      console.log('🎯 useTournaments: Force refresh:', forceRefresh);
-      
       // Clear cache if force refresh requested
       if (forceRefresh) {
-        console.log('🧹 useTournaments: Force clearing cache...');
         clearTournamentCache();
       }
       
       // Fetch from API
       const response = await tournamentAPI.getAll(forceRefresh);
-      console.log('🎯 useTournaments: API response received:', response);
       
       // Handle response data structure
       let tournamentsData = [];
@@ -46,11 +41,8 @@ export const useTournaments = (autoFetch = true) => {
       
       // Ensure we have an array
       if (!Array.isArray(tournamentsData)) {
-        console.warn('⚠️ useTournaments: No valid array found, using empty array');
         tournamentsData = [];
       }
-      
-      console.log(`✅ useTournaments: Fetched ${tournamentsData.length} tournaments`);
       
       // Update state
       setTournaments(tournamentsData);
@@ -91,10 +83,7 @@ export const useTournaments = (autoFetch = true) => {
   // Create tournament function
   const createTournament = useCallback(async (tournamentData) => {
     try {
-      console.log('🎯 useTournaments: Creating tournament:', tournamentData);
-      
       const response = await tournamentAPI.create(tournamentData);
-      console.log('✅ useTournaments: Tournament created:', response.data);
       
       // Refresh tournaments list
       await fetchTournaments(true);
@@ -110,10 +99,7 @@ export const useTournaments = (autoFetch = true) => {
   // Delete tournament function
   const deleteTournament = useCallback(async (tournamentId) => {
     try {
-      console.log('🎯 useTournaments: Deleting tournament:', tournamentId);
-      
       await tournamentAPI.delete(tournamentId);
-      console.log('✅ useTournaments: Tournament deleted');
       
       // Remove from local state immediately for better UX
       setTournaments(prev => prev.filter(t => t.id !== tournamentId));
@@ -130,7 +116,6 @@ export const useTournaments = (autoFetch = true) => {
   // Auto-fetch on mount if enabled
   useEffect(() => {
     if (autoFetch) {
-      console.log('🎯 useTournaments: Auto-fetching tournaments on mount');
       fetchTournaments(true);
     }
   }, [autoFetch, fetchTournaments]);
@@ -138,7 +123,6 @@ export const useTournaments = (autoFetch = true) => {
   // Listen for tournament creation events
   useEffect(() => {
     const handleTournamentCreated = () => {
-      console.log('🎯 useTournaments: Tournament creation event detected');
       fetchTournaments(true);
     };
 
@@ -148,7 +132,6 @@ export const useTournaments = (autoFetch = true) => {
     // Listen for localStorage changes (for cross-tab communication)
     const handleStorageChange = (e) => {
       if (e.key === 'tournament_created') {
-        console.log('🎯 useTournaments: Tournament creation via storage detected');
         fetchTournaments(true);
         localStorage.removeItem('tournament_created');
       }

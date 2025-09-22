@@ -23,28 +23,21 @@ const PlayerHistory = () => {
     try {
       setIsLoading(true);
       setError('');
-      console.log('🎯 Fetching player history...');
       
       let tournamentData = [];
       
       try {
         // Method 1: Try the dedicated participated endpoint
-        console.log('📊 Trying participated tournaments endpoint...');
         const participatedResponse = await tournamentAPI.getParticipated();
-        console.log('📊 Player history response (participated):', participatedResponse);
         
         if (participatedResponse?.data && Array.isArray(participatedResponse.data)) {
           tournamentData = participatedResponse.data;
-          console.log(`✅ Found ${tournamentData.length} participated tournaments`);
         }
       } catch (participatedError) {
-        console.log('⚠️ Participated endpoint failed, trying alternatives...', participatedError.message);
         
         try {
           // Method 2: Try getting all tournaments and check for participation
-          console.log('📊 Trying all tournaments endpoint...');
           const allTournamentsResponse = await tournamentAPI.getAll();
-          console.log('📊 All tournaments response:', allTournamentsResponse);
           
           let allTournaments = [];
           if (Array.isArray(allTournamentsResponse.data)) {
@@ -78,7 +71,6 @@ const PlayerHistory = () => {
               }
               return null;
             } catch (error) {
-              console.log(`Could not get scores for tournament ${tournament.id}:`, error.message);
               return null;
             }
           });
@@ -88,15 +80,11 @@ const PlayerHistory = () => {
             .filter(result => result.status === 'fulfilled' && result.value !== null)
             .map(result => result.value);
             
-          console.log(`✅ Found ${tournamentData.length} participated tournaments (from all tournaments)`);
-          
         } catch (allTournamentsError) {
-          console.log('⚠️ All tournaments endpoint also failed, trying past tournaments...', allTournamentsError.message);
           
           try {
             // Method 3: Try getting past tournaments as fallback
             const pastResponse = await tournamentAPI.getPast();
-            console.log('📊 Past tournaments response:', pastResponse);
             
             if (pastResponse?.data && Array.isArray(pastResponse.data)) {
               tournamentData = pastResponse.data.filter(tournament => {
@@ -105,7 +93,6 @@ const PlayerHistory = () => {
                        tournament.participated === true ||
                        tournament.userAttempts > 0;
               });
-              console.log(`✅ Found ${tournamentData.length} tournaments from past endpoint`);
             }
           } catch (pastError) {
             console.error('❌ All methods failed:', pastError.message);

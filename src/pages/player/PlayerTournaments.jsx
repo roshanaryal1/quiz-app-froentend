@@ -20,22 +20,14 @@ const PlayerTournaments = () => {
   }, [refreshTrigger]);
 
   const fetchTournaments = async () => {
-    console.log("🔄 Fetching tournaments for player...");
-    console.log("🔄 Fetching tournaments for player...");
     try {
       setIsLoading(true);
       setError('');
       
-      console.log('Player: Fetching tournaments...');
-      
       const response = await tournamentAPI.getAll();
-      console.log('Player: Tournaments response:', response);
-      console.log('Player: Response.data:', response.data);
-      console.log('Player: Response.data type:', typeof response.data);
       
       // Check if there's an error in the response
       if (response.error) {
-        console.error('Player: API returned error:', response.error);
         setError(`Failed to load tournaments: ${response.error}`);
         setTournaments([]);
         return;
@@ -47,26 +39,20 @@ const PlayerTournaments = () => {
       if (Array.isArray(response.data)) {
         // Direct array response
         tournamentsData = response.data;
-        console.log('Player: Using direct array from response.data');
       } else if (Array.isArray(response.data?.tournaments)) {
         // Nested array in tournaments property
         tournamentsData = response.data.tournaments;
-        console.log('Player: Using response.data.tournaments');
       } else if (response.data && typeof response.data === 'object') {
         // Try to find arrays in the response object
         const keys = Object.keys(response.data);
-        console.log('Player: Response data keys:', keys);
         for (const key of keys) {
           if (Array.isArray(response.data[key])) {
             tournamentsData = response.data[key];
-            console.log(`Player: Using response.data.${key} as tournaments array`);
             break;
           }
         }
       }
       
-      console.log('Player: Final tournaments data:', tournamentsData);
-      console.log('Player: Number of tournaments:', tournamentsData.length);
       setTournaments(tournamentsData);
     } catch (error) {
       console.error('Player: Error fetching tournaments:', error);
@@ -240,7 +226,6 @@ const PlayerTournaments = () => {
 
   // Function to manually refresh tournaments
   const refreshTournaments = () => {
-    console.log('Manually refreshing tournaments...');
     clearTournamentCache(); // Clear cache before fetching
     setRefreshTrigger(prev => prev + 1);
   };
@@ -249,13 +234,11 @@ const PlayerTournaments = () => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        console.log('Page became visible, refreshing tournaments...');
         refreshTournaments();
       }
     };
 
     const handleFocus = () => {
-      console.log('Window focused, refreshing tournaments...');
       refreshTournaments();
     };
 

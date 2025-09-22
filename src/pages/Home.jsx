@@ -31,7 +31,6 @@ const Home = () => {
       const isHealthy = await checkApiHealth();
       
       if (!isHealthy) {
-        console.log('API appears to be sleeping, warming up...');
         setIsWarmingUp(true);
         await warmupApi();
         setIsWarmingUp(false);
@@ -77,7 +76,6 @@ const Home = () => {
 
     } catch (error) {
       console.error('Error fetching home data:', error);
-      console.log('Error details:', error.response?.data);
       
       // Set empty arrays as fallback
       setRecentTournaments([]);

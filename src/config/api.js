@@ -20,9 +20,6 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-// Log which API URL is being used
-console.log(`API Configuration: Using ${API_BASE_URL}`);
-
 // Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -54,37 +51,29 @@ export const detectBackend = async () => {
       clearTimeout(timeoutId);
       return response.ok;
     } catch (error) {
-      console.log(`Backend test failed for ${url}:`, error.message);
       return false;
     }
   };
   
   // In development, try local first
   if (import.meta.env.DEV) {
-    console.log('Development mode: Checking local backend...');
     const localWorks = await testEndpoint(localUrl);
     if (localWorks) {
-      console.log('Local backend is available');
       return localUrl;
     } else {
-      console.log('Local backend unavailable, trying deployed...');
       const deployedWorks = await testEndpoint(deployedUrl);
       if (deployedWorks) {
-        console.log('Deployed backend is available');
         return deployedUrl;
       }
     }
   } else {
     // In production, use deployed backend
-    console.log('Production mode: Using deployed backend...');
     const deployedWorks = await testEndpoint(deployedUrl);
     if (deployedWorks) {
-      console.log('Deployed backend is available');
       return deployedUrl;
     }
   }
   
-  console.log('No backend available, using default');
   return deployedUrl;
 };
 
@@ -94,7 +83,6 @@ export const switchBackend = async (forceDetect = false) => {
     if (detectedUrl !== currentApiUrl) {
       currentApiUrl = detectedUrl;
       api.defaults.baseURL = currentApiUrl;
-      console.log(`Switched to backend: ${currentApiUrl}`);
       return true;
     }
   }
@@ -108,7 +96,6 @@ export const initializeApi = async () => {
     if (detectedUrl !== currentApiUrl) {
       currentApiUrl = detectedUrl;
       api.defaults.baseURL = currentApiUrl;
-      console.log(`Initialized with backend: ${currentApiUrl}`);
     }
   } catch (error) {
     console.warn('Backend detection failed, using default:', currentApiUrl);
@@ -149,14 +136,12 @@ api.interceptors.response.use(
     }
     
     // Handle 500/503 errors by trying to switch backend
-    if (error.response?.status >= 500 || error.code === 'NETWORK_ERROR') {
-      console.log('Server error detected, attempting backend switch...');
+    if (error.response?.status >= 500) {
       const switched = await switchBackend(true);
       
       if (switched && error.config && !error.config._retry) {
         error.config._retry = true;
         error.config.baseURL = currentApiUrl;
-        console.log('Retrying request with new backend...');
         return api.request(error.config);
       }
     }
@@ -167,7 +152,6 @@ api.interceptors.response.use(
 
 // Clear tournament cache function
 export const clearTournamentCache = () => {
-  console.log("Clearing tournament cache");
   if (typeof localStorage !== "undefined") {
     localStorage.removeItem("tournament_cache");
     localStorage.removeItem("tournament_cache_time");
@@ -177,10 +161,7 @@ export const clearTournamentCache = () => {
 // Tournament API with enhanced error handling
 export const tournamentAPI = {
   getAll: async (forceRefresh = false) => {
-    console.log('TournamentAPI.getAll called, forceRefresh:', forceRefresh);
-    
     try {
-      console.log('Fetching tournaments from API...');
       const response = await api.get('/tournaments');
       
       // Handle different response structures
@@ -193,7 +174,6 @@ export const tournamentAPI = {
         tournaments = response.data.tournaments;
       }
       
-      console.log(`Retrieved ${tournaments.length} tournaments`);
       return { ...response, data: tournaments };
     } catch (error) {
       console.error('Tournament API error:', error);
@@ -204,26 +184,20 @@ export const tournamentAPI = {
   getById: (id) => api.get(`/tournaments/${id}`),
   
   create: async (data) => {
-    console.log('Creating tournament:', data);
     const response = await api.post('/tournaments', data);
     clearTournamentCache();
-    console.log('Tournament created, cache cleared');
     return response;
   },
   
   update: async (id, data) => {
-    console.log('Updating tournament:', id, data);
     const response = await api.put(`/tournaments/${id}`, data);
     clearTournamentCache();
-    console.log('Tournament updated, cache cleared');
     return response;
   },
   
   delete: async (id) => {
-    console.log('Deleting tournament:', id);
     const response = await api.delete(`/tournaments/${id}`);
     clearTournamentCache();
-    console.log('Tournament deleted, cache cleared');
     return response;
   },
   
@@ -231,9 +205,7 @@ export const tournamentAPI = {
   
   participate: async (id, answers) => {
     try {
-      console.log('Participating in tournament:', id);
       const response = await api.post(`/tournaments/${id}/participate`, answers);
-      console.log('Participation successful');
       return response;
     } catch (error) {
       console.error('Participation failed:', error);
@@ -245,9 +217,7 @@ export const tournamentAPI = {
   
   like: async (id) => {
     try {
-      console.log('Liking tournament:', id);
       const response = await api.post(`/tournaments/${id}/like`);
-      console.log('Like successful');
       return response;
     } catch (error) {
       console.error('Like failed:', error);
@@ -257,9 +227,7 @@ export const tournamentAPI = {
   
   unlike: async (id) => {
     try {
-      console.log('Unliking tournament:', id);
       const response = await api.delete(`/tournaments/${id}/like`);
-      console.log('Unlike successful');
       return response;
     } catch (error) {
       console.error('Unlike failed:', error);
