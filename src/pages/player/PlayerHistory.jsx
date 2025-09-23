@@ -63,10 +63,10 @@ const PlayerHistory = () => {
               if (userScore) {
                 return {
                   ...tournament,
-                  userScore: userScore.score,
+                  userScore: userScore.playerScore || userScore.score,
                   userAttempts: userScore.attempts || 1,
-                  participationDate: userScore.participationDate || tournament.endDate,
-                  passed: userScore.passed || (userScore.score >= Math.round((tournament.minimumPassingScore || 70) * 10 / 100))
+                  participationDate: userScore.participationDate || userScore.completedDate || tournament.endDate,
+                  passed: userScore.passed || (userScore.playerScore || userScore.score || 0) >= Math.round((tournament.minimumPassingScore || 70) * 10 / 100)
                 };
               }
               return null;
