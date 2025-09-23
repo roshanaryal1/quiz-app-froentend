@@ -315,29 +315,6 @@ const AdminTournaments = () => {
                 <RefreshCw className="w-4 h-4" />
                 <span>Refresh</span>
               </button>
-              <button
-                onClick={async () => {
-                  try {
-                    const response = await tournamentAPI.getAll();
-                    alert(`API Test: ${JSON.stringify(response.data, null, 2)}`);
-                  } catch (error) {
-                    console.error('Test API Error:', error);
-                    alert(`API Test Error: ${error.message}`);
-                  }
-                }}
-                className="btn-secondary inline-flex items-center space-x-2"
-                title="Test tournaments API"
-              >
-                <span>Test API</span>
-              </button>
-              <button
-                onClick={() => fetchTournaments(true)}
-                className="btn-secondary inline-flex items-center space-x-2"
-                disabled={isLoading}
-              >
-                <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
-                <span>Refresh</span>
-              </button>
               <Link
                 to="/admin/create-tournament"
                 className="btn-primary inline-flex items-center space-x-2"

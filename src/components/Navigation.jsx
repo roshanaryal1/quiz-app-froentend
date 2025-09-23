@@ -109,20 +109,6 @@ const Navigation = () => {
                         <Settings size={16} />
                         <span>Profile Settings</span>
                       </Link>
-                      <Link
-                        to="/auth-diagnostics"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                      >
-                        <Activity size={16} />
-                        <span>Connection Status</span>
-                      </Link>
-                      <Link
-                        to="/diagnostics"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center space-x-2"
-                      >
-                        <Settings size={16} />
-                        <span>API Diagnostics</span>
-                      </Link>
                       <div className="border-t border-gray-100"></div>
                       <button
                         onClick={handleLogout}
@@ -215,22 +201,6 @@ const Navigation = () => {
                   >
                     <Settings size={18} />
                     <span>Profile Settings</span>
-                  </Link>
-                  <Link
-                    to="/auth-diagnostics"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center space-x-2 px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                  >
-                    <Activity size={18} />
-                    <span>Connection Status</span>
-                  </Link>
-                  <Link
-                    to="/diagnostics"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center space-x-2 px-3 py-2 text-base font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md"
-                  >
-                    <Settings size={18} />
-                    <span>API Diagnostics</span>
                   </Link>
                   <button
                     onClick={handleLogout}
