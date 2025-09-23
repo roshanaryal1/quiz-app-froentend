@@ -13,11 +13,13 @@ import {
   RotateCcw,
   Heart,
   Award,
-  Target
+  Target,
+  AlertTriangle
 } from 'lucide-react';
-import { LoadingSpinner } from '../../components/common/LoadingSpinner';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { debugTournamentScoring } from '../../utils/scoringValidator';
 import LikeButton from '../../components/common/LikeButton';
+import { useParticipationStatus } from '../../hooks/useParticipationStatus';
 
 const TournamentPlay = () => {
   const { id } = useParams();
@@ -36,6 +38,9 @@ const TournamentPlay = () => {
   const [result, setResult] = useState(null);
   const [timeRemaining, setTimeRemaining] = useState(null);
   const [isLiked, setIsLiked] = useState(false);
+
+  // Check participation status
+  const { hasParticipated, loading: participationLoading } = useParticipationStatus(id);
 
   useEffect(() => {
     fetchTournamentData();
@@ -378,31 +383,64 @@ const TournamentPlay = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{tournament?.name}</h1>
-              <p className="text-gray-600">
-                Question {currentQuestionIndex + 1} of {questions.length}
-              </p>
-            </div>
-            
-            <div className="text-right">
-              {timeRemaining && (
-                <div className="flex items-center text-orange-600 mb-2">
-                  <Clock className="w-4 h-4 mr-1" />
-                  <span className="font-mono font-bold">
-                    {formatTime(timeRemaining)}
-                  </span>
+        
+        {/* Already Participated Check */}
+        {!participationLoading && hasParticipated && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg shadow-sm mb-6 p-6">
+            <div className="flex items-center justify-center">
+              <div className="text-center">
+                <AlertTriangle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-orange-800 mb-2">Already Completed</h2>
+                <p className="text-orange-700 mb-4">
+                  You have already participated in this tournament. Each player can only participate once.
+                </p>
+                <div className="flex gap-3 justify-center">
+                  <button
+                    onClick={() => navigate('/player/tournaments')}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    View All Tournaments
+                  </button>
+                  <button
+                    onClick={() => navigate(`/player/tournaments/${id}/results`)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    View Your Results
+                  </button>
                 </div>
-              )}
-              
-              <div className="text-sm text-gray-600">
-                Answered: {getTotalAnswered()}/{questions.length}
               </div>
             </div>
           </div>
+        )}
+
+        {/* Only show tournament content if user hasn't participated */}
+        {!participationLoading && !hasParticipated && (
+          <>
+            {/* Header */}
+            <div className="bg-white rounded-lg shadow-sm mb-6 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">{tournament?.name}</h1>
+                  <p className="text-gray-600">
+                    Question {currentQuestionIndex + 1} of {questions.length}
+                  </p>
+                </div>
+                
+                <div className="text-right">
+                  {timeRemaining && (
+                    <div className="flex items-center text-orange-600 mb-2">
+                      <Clock className="w-4 h-4 mr-1" />
+                      <span className="font-mono font-bold">
+                        {formatTime(timeRemaining)}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="text-sm text-gray-600">
+                    Answered: {getTotalAnswered()}/{questions.length}
+                  </div>
+                </div>
+              </div>
           
           {/* Progress bar */}
           <div className="w-full bg-gray-200 rounded-full h-2">
@@ -585,6 +623,8 @@ const TournamentPlay = () => {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

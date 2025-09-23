@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Trophy, Users, Clock, Award, Play, Shield, AlertCircle } from 'lucide-react';
+import { Trophy, Users, Clock, Award, Play, Shield, AlertCircle, CheckCircle } from 'lucide-react';
 import { tournamentAPI, checkApiHealth, warmupApi } from '../config/api';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import { useParticipationStatus } from '../hooks/useParticipationStatus';
 
 const Home = () => {
   const { isAuthenticated, user } = useAuth();
@@ -113,6 +114,8 @@ const Home = () => {
   };
 
   const TournamentCard = ({ tournament }) => {
+    const { hasParticipated, loading: participationLoading } = useParticipationStatus(tournament.id);
+    
     const now = new Date();
     const startDate = new Date(tournament.startDate);
     const endDate = new Date(tournament.endDate);
@@ -155,12 +158,27 @@ const Home = () => {
         
         {isAuthenticated && user?.role === 'PLAYER' && status.label === 'Ongoing' && (
           <div className="mt-4">
-            <Link 
-              to={`/player/tournaments/${tournament.id}`}
-              className="btn-primary w-full text-center"
-            >
-              Play Now
-            </Link>
+            {!participationLoading && hasParticipated ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-center space-x-2 text-blue-600 bg-blue-50 px-3 py-2 rounded-lg text-sm font-medium">
+                  <CheckCircle size={16} />
+                  <span>Already Completed</span>
+                </div>
+                <Link 
+                  to={`/player/tournaments/${tournament.id}/results`}
+                  className="btn-secondary w-full text-center"
+                >
+                  View Results
+                </Link>
+              </div>
+            ) : (
+              <Link 
+                to={`/player/tournaments/${tournament.id}`}
+                className="btn-primary w-full text-center"
+              >
+                Play Now
+              </Link>
+            )}
           </div>
         )}
       </div>

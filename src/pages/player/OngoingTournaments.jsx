@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { tournamentAPI } from '../../config/api';
-import { Play, Trophy, Clock, Award, Users, Calendar, Heart, Zap } from 'lucide-react';
+import { Play, Trophy, Clock, Award, Users, Calendar, Heart, Zap, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { useParticipationStatus } from '../../hooks/useParticipationStatus';
 
 const OngoingTournaments = () => {
   const [tournaments, setTournaments] = useState([]);
@@ -32,6 +33,7 @@ const OngoingTournaments = () => {
   const TournamentCard = ({ tournament }) => {
     const [likes, setLikes] = useState(0);
     const [timeRemaining, setTimeRemaining] = useState('');
+    const { hasParticipated, loading: participationLoading } = useParticipationStatus(tournament.id);
 
     useEffect(() => {
       const fetchLikes = async () => {
@@ -156,13 +158,29 @@ const OngoingTournaments = () => {
             10 questions • Multiple choice
           </div>
           
-          <Link
-            to={`/player/tournaments/${tournament.id}`}
-            className="btn-primary inline-flex items-center space-x-2 bg-green-600 hover:bg-green-700"
-          >
-            <Play size={16} />
-            <span>Play Now</span>
-          </Link>
+          {!participationLoading && hasParticipated ? (
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2 text-blue-600 bg-blue-50 px-3 py-2 rounded-lg text-sm font-medium">
+                <CheckCircle size={16} />
+                <span>Already Completed</span>
+              </div>
+              <Link
+                to={`/player/tournaments/${tournament.id}/results`}
+                className="btn-secondary inline-flex items-center space-x-2 w-full justify-center"
+              >
+                <Trophy size={16} />
+                <span>View Results</span>
+              </Link>
+            </div>
+          ) : (
+            <Link
+              to={`/player/tournaments/${tournament.id}`}
+              className="btn-primary inline-flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+            >
+              <Play size={16} />
+              <span>Play Now</span>
+            </Link>
+          )}
         </div>
       </div>
     );

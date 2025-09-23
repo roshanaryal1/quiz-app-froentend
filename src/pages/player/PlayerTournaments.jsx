@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { tournamentAPI, clearTournamentCache } from '../../config/api';
-import { Trophy, Clock, Award, Play, Heart, Users, Calendar } from 'lucide-react';
+import { tournamentAPI } from '../../config/api';
+import { useParticipationStatus } from '../../hooks/useParticipationStatus';
+import { Calendar, Users, Heart, Trophy, Clock, Play, RefreshCw, Filter, Eye } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const PlayerTournaments = () => {
@@ -92,6 +93,7 @@ const PlayerTournaments = () => {
     const status = getTournamentStatus(tournament);
     const [likes, setLikes] = useState(0);
     const [isLiked, setIsLiked] = useState(false);
+    const { hasParticipated, loading: participationLoading } = useParticipationStatus(tournament.id);
 
     useEffect(() => {
       const fetchLikes = async () => {
@@ -195,13 +197,32 @@ const PlayerTournaments = () => {
           </div>
           
           {status === 'ongoing' ? (
-            <Link
-              to={`/player/tournaments/${tournament.id}`}
-              className="btn-primary inline-flex items-center space-x-2"
-            >
-              <Play size={16} />
-              <span>Play Now</span>
-            </Link>
+            hasParticipated ? (
+              <div className="flex flex-col space-y-2">
+                <button
+                  disabled
+                  className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-medium cursor-not-allowed inline-flex items-center space-x-2"
+                >
+                  <Trophy size={16} />
+                  <span>Already Completed</span>
+                </button>
+                <Link
+                  to={`/player/tournaments/${tournament.id}/results`}
+                  className="btn-secondary text-sm inline-flex items-center space-x-2 justify-center"
+                >
+                  <Eye size={16} />
+                  <span>View Results</span>
+                </Link>
+              </div>
+            ) : (
+              <Link
+                to={`/player/tournaments/${tournament.id}`}
+                className="btn-primary inline-flex items-center space-x-2"
+              >
+                <Play size={16} />
+                <span>Play Now</span>
+              </Link>
+            )
           ) : status === 'upcoming' ? (
             <button
               disabled
