@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { tournamentAPI } from '../../config/api';
 import { useParticipationStatus } from '../../hooks/useParticipationStatus';
-import { Calendar, Users, Heart, Trophy, Clock, Play, RefreshCw, Filter, Eye } from 'lucide-react';
+import { Calendar, Users, Heart, Trophy, Clock, Play, RefreshCw, Filter, Eye, Award, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const PlayerTournaments = () => {

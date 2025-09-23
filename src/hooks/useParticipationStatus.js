@@ -14,8 +14,9 @@ export const useParticipationStatus = (tournamentId) => {
   const { isAuthenticated, user } = useAuth();
 
   const checkParticipation = async () => {
-    if (!tournamentId || !isAuthenticated) {
+    if (!tournamentId || !isAuthenticated || !user?.id) {
       setHasParticipated(false);
+      setLoading(false);
       return;
     }
 
@@ -23,7 +24,7 @@ export const useParticipationStatus = (tournamentId) => {
       setLoading(true);
       setError(null);
       
-      const response = await tournamentAPI.checkParticipationStatus(tournamentId);
+      const response = await tournamentAPI.checkParticipationStatus(tournamentId, user.id);
       setHasParticipated(response.data.hasParticipated);
       
     } catch (error) {
