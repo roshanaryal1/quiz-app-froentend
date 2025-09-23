@@ -31,6 +31,7 @@ const TournamentPlay = () => {
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState({});
+  const [answerCorrectness, setAnswerCorrectness] = useState({}); // Track correct/incorrect answers
   const [selectedAnswer, setSelectedAnswer] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,11 +136,20 @@ const TournamentPlay = () => {
   };
 
   const handleNextQuestion = () => {
-    // Save current answer
+    // Save current answer and check correctness
     if (selectedAnswer) {
+      const currentQuestion = questions[currentQuestionIndex];
+      const isCorrect = selectedAnswer.toLowerCase().trim() === currentQuestion.correctAnswer.toLowerCase().trim();
+      
       setAnswers(prev => ({
         ...prev,
         [currentQuestionIndex]: selectedAnswer
+      }));
+      
+      // Track answer correctness for visual feedback
+      setAnswerCorrectness(prev => ({
+        ...prev,
+        [currentQuestionIndex]: isCorrect
       }));
     }
     
@@ -155,11 +165,20 @@ const TournamentPlay = () => {
 
   const handlePreviousQuestion = () => {
     if (currentQuestionIndex > 0) {
-      // Save current answer
+      // Save current answer and check correctness
       if (selectedAnswer) {
+        const currentQuestion = questions[currentQuestionIndex];
+        const isCorrect = selectedAnswer.toLowerCase().trim() === currentQuestion.correctAnswer.toLowerCase().trim();
+        
         setAnswers(prev => ({
           ...prev,
           [currentQuestionIndex]: selectedAnswer
+        }));
+        
+        // Track answer correctness for visual feedback
+        setAnswerCorrectness(prev => ({
+          ...prev,
+          [currentQuestionIndex]: isCorrect
         }));
       }
       
@@ -238,6 +257,14 @@ const TournamentPlay = () => {
 
   const getTotalAnswered = () => {
     return Object.keys(answers).length + (selectedAnswer ? 1 : 0);
+  };
+
+  const getCorrectAnswersCount = () => {
+    return Object.values(answerCorrectness).filter(isCorrect => isCorrect === true).length;
+  };
+
+  const getIncorrectAnswersCount = () => {
+    return Object.values(answerCorrectness).filter(isCorrect => isCorrect === false).length;
   };
 
   // Loading state
@@ -568,37 +595,83 @@ const TournamentPlay = () => {
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quiz Progress</h3>
           
           <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-            {questions.map((_, index) => (
-              <div
-                key={index}
-                className={`aspect-square rounded flex items-center justify-center text-xs font-medium cursor-pointer transition-all duration-200 ${
-                  index === currentQuestionIndex
-                    ? 'bg-blue-500 text-white'
-                    : answers[index]
-                      ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                onClick={() => {
-                  // Save current answer before switching
-                  if (selectedAnswer) {
-                    setAnswers(prev => ({
-                      ...prev,
-                      [currentQuestionIndex]: selectedAnswer
-                    }));
-                  }
-                  setCurrentQuestionIndex(index);
-                  setSelectedAnswer(answers[index] || '');
-                }}
-                title={`Question ${index + 1}${answers[index] ? ' (Answered)' : ''}`}
-              >
-                {index + 1}
-              </div>
-            ))}
+            {questions.map((_, index) => {
+              const isAnswered = answers[index];
+              const isCorrect = answerCorrectness[index];
+              const isCurrent = index === currentQuestionIndex;
+              
+              // Determine styling based on state
+              let styling = '';
+              if (isCurrent) {
+                styling = 'bg-blue-500 text-white border-2 border-blue-600';
+              } else if (isAnswered && isCorrect !== undefined) {
+                // Show correct/incorrect feedback only after answer is submitted
+                styling = isCorrect 
+                  ? 'bg-green-500 text-white hover:bg-green-600' 
+                  : 'bg-red-500 text-white hover:bg-red-600';
+              } else if (isAnswered) {
+                // Answered but not yet processed (shouldn't happen with current flow)
+                styling = 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200';
+              } else {
+                // Not answered
+                styling = 'bg-gray-100 text-gray-600 hover:bg-gray-200';
+              }
+              
+              return (
+                <div
+                  key={index}
+                  className={`aspect-square rounded flex items-center justify-center text-xs font-medium cursor-pointer transition-all duration-200 ${styling}`}
+                  onClick={() => {
+                    // Save current answer and check correctness before switching
+                    if (selectedAnswer) {
+                      const currentQuestion = questions[currentQuestionIndex];
+                      const isCorrect = selectedAnswer.toLowerCase().trim() === currentQuestion.correctAnswer.toLowerCase().trim();
+                      
+                      setAnswers(prev => ({
+                        ...prev,
+                        [currentQuestionIndex]: selectedAnswer
+                      }));
+                      
+                      // Track answer correctness for visual feedback
+                      setAnswerCorrectness(prev => ({
+                        ...prev,
+                        [currentQuestionIndex]: isCorrect
+                      }));
+                    }
+                    setCurrentQuestionIndex(index);
+                    setSelectedAnswer(answers[index] || '');
+                  }}
+                  title={`Question ${index + 1}${
+                    answers[index] 
+                      ? isCorrect !== undefined 
+                        ? ` (${isCorrect ? 'Correct' : 'Incorrect'})` 
+                        : ' (Answered)'
+                      : ''
+                  }`}
+                >
+                  {index + 1}
+                </div>
+              );
+            })}
           </div>
           
           <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
             <span>Click any number to jump to that question</span>
-            <span>{getTotalAnswered()} of {questions.length} answered</span>
+            <div className="flex items-center space-x-4">
+              <span>{getTotalAnswered()} of {questions.length} answered</span>
+              {getCorrectAnswersCount() > 0 || getIncorrectAnswersCount() > 0 ? (
+                <span className="flex items-center space-x-2">
+                  <span className="flex items-center">
+                    <div className="w-3 h-3 bg-green-500 rounded mr-1"></div>
+                    {getCorrectAnswersCount()} correct
+                  </span>
+                  <span className="flex items-center">
+                    <div className="w-3 h-3 bg-red-500 rounded mr-1"></div>
+                    {getIncorrectAnswersCount()} incorrect
+                  </span>
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
 
