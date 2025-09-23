@@ -172,7 +172,7 @@ const AdminTournaments = () => {
       fetchLikes();
     }, [tournament.id]);
 
-    const participantCount = Array.isArray(tournament.attempts) ? tournament.attempts.length : 0;
+    const participantCount = tournament.participantCount || 0;
 
     return (
       <div className="card hover:shadow-lg transition-shadow">
@@ -403,7 +403,7 @@ const AdminTournaments = () => {
               </div>
               <div className="ml-4">
                 <p className="text-2xl font-bold text-gray-900">
-                  {tournaments.reduce((sum, t) => sum + (Array.isArray(t.attempts) ? t.attempts.length : 0), 0)}
+                  {tournaments.reduce((sum, t) => sum + (t.participantCount || 0), 0)}
                 </p>
                 <p className="text-gray-600">Total Participants</p>
               </div>
@@ -456,7 +456,7 @@ const AdminTournaments = () => {
                 <div className="space-y-1 text-sm text-gray-600">
                   <p><span className="font-medium">Name:</span> {deleteModal.tournament.name}</p>
                   <p><span className="font-medium">Category:</span> {deleteModal.tournament.category}</p>
-                  <p><span className="font-medium">Participants:</span> {Array.isArray(deleteModal.tournament.attempts) ? deleteModal.tournament.attempts.length : 0}</p>
+                  <p><span className="font-medium">Participants:</span> {deleteModal.tournament.participantCount || 0}</p>
                   <p><span className="font-medium">Status:</span> {getTournamentStatus(deleteModal.tournament).label}</p>
                 </div>
               </div>
