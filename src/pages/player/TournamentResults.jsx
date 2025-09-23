@@ -44,7 +44,7 @@ const TournamentResults = () => {
           totalQuestions: userAttempt.totalQuestions || 10,
           percentage: Math.round((userAttempt.score / (userAttempt.totalQuestions || 10)) * 100),
           completedAt: userAttempt.completedAt,
-          passed: userAttempt.score >= (tournamentResponse.data.minimumPassingScore || 0)
+          passed: userAttempt.score >= Math.round((tournamentResponse.data.minimumPassingScore || 70) * 10 / 100)
         });
       }
 
@@ -111,7 +111,7 @@ const TournamentResults = () => {
     ? Math.round(tournament.attempts.reduce((sum, attempt) => sum + attempt.score, 0) / totalParticipants)
     : 0;
   const passedCount = tournament.attempts?.filter(attempt => 
-    attempt.score >= tournament.minimumPassingScore
+    attempt.score >= Math.round(tournament.minimumPassingScore * 10 / 100)
   ).length || 0;
 
   return (
@@ -153,7 +153,7 @@ const TournamentResults = () => {
                 <div className="text-sm text-gray-600">Average Score</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-purple-600">{Math.round((tournament.minimumPassingScore / 10) * 100)}%</div>
+                <div className="text-2xl font-bold text-purple-600">{tournament.minimumPassingScore}%</div>
                 <div className="text-sm text-gray-600">Pass Score</div>
               </div>
             </div>
@@ -203,7 +203,7 @@ const TournamentResults = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Required to pass:</span>
-                    <span className="font-medium">{Math.round((tournament.minimumPassingScore / 10) * 100)}%</span>
+                    <span className="font-medium">{tournament.minimumPassingScore}%</span>
                   </div>
                 </div>
               </div>
@@ -234,7 +234,7 @@ const TournamentResults = () => {
                       .map((attempt, index) => {
                         const rank = index + 1;
                         const percentage = Math.round((attempt.score / (attempt.totalQuestions || 10)) * 100);
-                        const passed = attempt.score >= tournament.minimumPassingScore;
+                        const passed = attempt.score >= Math.round(tournament.minimumPassingScore * 10 / 100);
                         
                         return (
                           <div key={attempt.id || index} className={`p-4 border-b border-gray-100 flex items-center space-x-4 ${

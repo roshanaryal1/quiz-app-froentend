@@ -50,7 +50,7 @@ export const detectBackend = async () => {
       
       clearTimeout(timeoutId);
       return response.ok;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   };
@@ -97,7 +97,7 @@ export const initializeApi = async () => {
       currentApiUrl = detectedUrl;
       api.defaults.baseURL = currentApiUrl;
     }
-  } catch (error) {
+  } catch (_error) {
     console.warn('Backend detection failed, using default:', currentApiUrl);
   }
   return true;
@@ -160,7 +160,7 @@ export const clearTournamentCache = () => {
 
 // Tournament API with enhanced error handling
 export const tournamentAPI = {
-  getAll: async (forceRefresh = false) => {
+  getAll: async () => {
     try {
       const response = await api.get('/tournaments');
       
@@ -287,7 +287,7 @@ export const warmupApi = async () => {
       headers: { 'Content-Type': 'application/json' }
     });
     return response.ok;
-  } catch (error) {
+  } catch (_error) {
     return false;
   }
 };

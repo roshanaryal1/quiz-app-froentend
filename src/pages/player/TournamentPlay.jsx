@@ -290,7 +290,7 @@ const TournamentPlay = () => {
               
               {result.passed && tournament && (
                 <p className="text-green-600 font-medium mt-2">
-                  🎉 You passed the tournament! (Required: {Math.round((tournament.minimumPassingScore / 10) * 100)}%)
+                  🎉 You passed the tournament! (Required: {tournament.minimumPassingScore}%)
                 </p>
               )}
             </div>

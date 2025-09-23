@@ -140,9 +140,9 @@ const PlayerHistory = () => {
   const filterTournaments = (tournaments, filterType) => {
     switch (filterType) {
       case 'passed':
-        return tournaments.filter(t => t.passed === true || (t.userScore || 0) >= (t.minimumPassingScore || 5));
+        return tournaments.filter(t => t.passed === true || (t.userScore || 0) >= Math.round((t.minimumPassingScore || 70) * 10 / 100));
       case 'failed':
-        return tournaments.filter(t => t.passed === false || (t.userScore || 0) < (t.minimumPassingScore || 5));
+        return tournaments.filter(t => t.passed === false || (t.userScore || 0) < Math.round((t.minimumPassingScore || 70) * 10 / 100));
       case 'high-score':
         return tournaments.filter(t => (t.userScore || 0) >= 8);
       default:
@@ -174,8 +174,8 @@ const PlayerHistory = () => {
 
   const getStatusBadge = (tournament) => {
     const score = tournament.userScore || 0;
-    const passingScore = tournament.minimumPassingScore || 5;
-    const passed = tournament.passed !== undefined ? tournament.passed : score >= passingScore;
+    const passingScoreAbsolute = Math.round((tournament.minimumPassingScore || 70) * 10 / 100);
+    const passed = tournament.passed !== undefined ? tournament.passed : score >= passingScoreAbsolute;
     
     if (passed) {
       return (

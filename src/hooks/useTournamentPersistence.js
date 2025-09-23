@@ -1,4 +1,6 @@
 // Add to src/hooks/useTournamentPersistence.js
+import { useEffect } from 'react';
+
 export const useTournamentPersistence = () => {
   useEffect(() => {
     const handleBeforeUnload = (e) => {
@@ -10,7 +12,7 @@ export const useTournamentPersistence = () => {
             e.preventDefault();
             return 'Tournament data will be preserved';
           }
-        } catch (error) {
+        } catch (_error) {
           // Silently handle preservation errors
         }
       }
