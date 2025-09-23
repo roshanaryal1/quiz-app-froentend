@@ -176,7 +176,7 @@ export const tournamentAPI = {
       
       return { ...response, data: tournaments };
     } catch (error) {
-      console.error('Tournament API error:', error);
+      /* Error handled */
       throw error;
     }
   },
@@ -208,7 +208,7 @@ export const tournamentAPI = {
       const response = await api.post(`/tournaments/${id}/participate`, answers);
       return response;
     } catch (error) {
-      console.error('Participation failed:', error);
+      /* Error handled */
       throw error;
     }
   },
@@ -220,7 +220,7 @@ export const tournamentAPI = {
       const response = await api.post(`/tournaments/${id}/like`);
       return response;
     } catch (error) {
-      console.error('Like failed:', error);
+      /* Error handled */
       return { success: false, error: error.message };
     }
   },
@@ -230,7 +230,7 @@ export const tournamentAPI = {
       const response = await api.delete(`/tournaments/${id}/like`);
       return response;
     } catch (error) {
-      console.error('Unlike failed:', error);
+      /* Error handled */
       return { success: false, error: error.message };
     }
   },

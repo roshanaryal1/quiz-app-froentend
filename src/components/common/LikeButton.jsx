@@ -28,7 +28,7 @@ const LikeButton = ({ tournamentId, initialLiked = false, initialLikesCount = 0,
       // Note: Backend should ideally provide user's like status
       // For now, we'll rely on the initialLiked prop or local state
     } catch (error) {
-      console.error('Failed to fetch like status:', error);
+      /* Error handled */
       // Don't show error to user for like status fetch failures
     }
   };
@@ -62,7 +62,7 @@ const LikeButton = ({ tournamentId, initialLiked = false, initialLikesCount = 0,
         setLikesCount(prev => prev + 1);
       }
     } catch (error) {
-      console.error('Like/unlike error:', error);
+      /* Error handled */
       
       // Handle specific error cases
       if (error.response?.status === 401) {

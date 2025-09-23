@@ -17,7 +17,6 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { debugTournamentScoring } from '../../utils/scoringValidator';
 import LikeButton from '../../components/common/LikeButton';
 import { useParticipationStatus } from '../../hooks/useParticipationStatus';
 
@@ -207,20 +206,10 @@ const TournamentPlay = () => {
       }
       
       // Debug logging
-      console.log('🎯 Submitting Quiz Results:');
-      console.log('📝 Questions and Answers:');
       questions.forEach((question, index) => {
-        console.log(`Q${index + 1}: ${question.question}`);
-        console.log(`  Correct: ${question.correctAnswer}`);
-        console.log(`  User Selected: ${answersArray[index]}`);
-        console.log(`  Options: ${question.options.join(', ')}`);
-        console.log(`  Match: ${question.correctAnswer === answersArray[index] ? '✅' : '❌'}`);
       });
       // Debug tournament scoring
-      const debugResult = debugTournamentScoring(questions, answersArray);
-      console.log('🧪 Local Scoring Result:', debugResult);
       
-      console.log('📤 Sending answers array:', answersArray);
       
       const response = await tournamentAPI.participate(id, { answers: answersArray });
       

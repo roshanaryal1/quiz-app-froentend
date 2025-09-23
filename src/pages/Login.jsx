@@ -227,7 +227,6 @@ const Login = () => {
             </span>
           </div>
 
-          {/* Debug Login */}
           <div className="mt-4">
             <button
               type="button"
@@ -236,7 +235,6 @@ const Login = () => {
               className="w-full flex items-center justify-center space-x-2 px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-gray-50 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Bug size={16} />
-              <span>Debug Login Issue</span>
             </button>
           </div>
 
