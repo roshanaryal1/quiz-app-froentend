@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Menu, X, Trophy, User, LogOut, Shield, Play, Settings, Activity } from 'lucide-react';
+import logoImage from '../assets/logo.png'; // Adjust the path as necessary
 
 const Navigation = () => {
   const { isAuthenticated, user, logout } = useAuth();
@@ -54,6 +55,7 @@ const Navigation = () => {
           {/* Logo and brand */}
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
+              <img src={logoImage} alt="Logo" className="h-8" />
               <span className="text-xl font-bold text-gray-900">Quiz Tournament</span>
             </Link>
           </div>

@@ -27,7 +27,6 @@ import TournamentResults from './pages/player/TournamentResults';
 
 // Error Pages
 import NotFound from './pages/NotFound';
-import Unauthorized from './pages/Unauthorized';
 
 function App() {
   return (
@@ -45,7 +44,6 @@ function App() {
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/unauthorized" element={<Unauthorized />} />
                 
                 {/* Protected routes */}
                 <Route 
