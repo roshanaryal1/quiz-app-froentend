@@ -29,23 +29,6 @@ import TournamentResults from './pages/player/TournamentResults';
 import NotFound from './pages/NotFound';
 import Unauthorized from './pages/Unauthorized';
 
-// Debug component for development only
-const DebugInfo = () => {
-  const token = localStorage.getItem('token');
-  const user = localStorage.getItem('user');
-  
-  if (import.meta.env.PROD) return null;
-  
-  return (
-    <div className="fixed bottom-0 right-0 bg-black text-white text-xs p-2 z-50 max-w-xs">
-      <div>Token: {token ? 'Present' : 'Missing'}</div>
-      <div>User: {user ? JSON.parse(user).username : 'None'}</div>
-      <div>Role: {user ? JSON.parse(user).role : 'None'}</div>
-      <div>URL: {window.location.pathname}</div>
-    </div>
-  );
-};
-
 function App() {
   return (
     <ErrorBoundary>
@@ -146,8 +129,6 @@ function App() {
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </React.Suspense>
-            
-            <DebugInfo />
           </div>
         </Router>
       </AuthProvider>
