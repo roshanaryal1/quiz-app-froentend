@@ -66,7 +66,7 @@ const PlayerHistory = () => {
                   userScore: userScore.score,
                   userAttempts: userScore.attempts || 1,
                   participationDate: userScore.participationDate || tournament.endDate,
-                  passed: userScore.passed || (userScore.score >= (tournament.passingScore || 5))
+                  passed: userScore.passed || (userScore.score >= Math.round((tournament.minimumPassingScore || 70) * 10 / 100))
                 };
               }
               return null;
@@ -204,8 +204,8 @@ const PlayerHistory = () => {
     const averageScore = totalScore / totalParticipated;
     const passedCount = participatedTournaments.filter(t => {
       const score = t.userScore || 0;
-      const passingScore = t.passingScore || 5;
-      return t.passed !== undefined ? t.passed : score >= passingScore;
+      const passingScoreAbsolute = Math.round((t.minimumPassingScore || 70) * 10 / 100);
+      return t.passed !== undefined ? t.passed : score >= passingScoreAbsolute;
     }).length;
     const passRate = (passedCount / totalParticipated) * 100;
     const bestScore = Math.max(...participatedTournaments.map(t => t.userScore || 0));
@@ -406,13 +406,13 @@ const PlayerHistory = () => {
                         
                         <div className="flex items-center">
                           <Award className="w-4 h-4 mr-2" />
-                          <span>Passing Score: {tournament.passingScore || 5}/10</span>
+                          <span>Passing Score: {tournament.minimumPassingScore || 70}%</span>
                         </div>
                       </div>
                     </div>
 
                     <div className="text-right ml-6">
-                      <div className={`inline-flex items-center px-3 py-2 rounded-lg font-bold text-lg ${getScoreColor(tournament.userScore || 0, tournament.passingScore || 5)}`}>
+                      <div className={`inline-flex items-center px-3 py-2 rounded-lg font-bold text-lg ${getScoreColor(tournament.userScore || 0, Math.round((tournament.minimumPassingScore || 70) * 10 / 100))}`}>
                         {tournament.userScore || 0}/10
                       </div>
                       <p className="text-xs text-gray-500 mt-1">

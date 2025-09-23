@@ -554,7 +554,7 @@ const TournamentPlay = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
             <div>
               <p className="text-gray-600">Passing Score</p>
-              <p className="font-semibold text-gray-900">{tournament?.passingScore || 5} out of {questions.length}</p>
+              <p className="font-semibold text-gray-900">{tournament?.minimumPassingScore || 70}%</p>
             </div>
             
             <div>
