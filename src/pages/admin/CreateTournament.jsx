@@ -15,15 +15,15 @@ const CreateTournament = () => {
   
   const [formData, setFormData] = useState(() => {
     const now = new Date();
-    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
-    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    
+    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+    const thirtyMinutesFromNow = new Date(now.getTime() + 35 * 60 * 1000);
+
     return {
       name: '',
       category: '',
       difficulty: 'medium',
-      startDate: oneHourFromNow.toISOString().slice(0, 16),
-      endDate: twoHoursFromNow.toISOString().slice(0, 16),
+      startDate: fiveMinutesFromNow.toISOString().slice(0, 16),
+      endDate: thirtyMinutesFromNow.toISOString().slice(0, 16),
       minimumPassingScore: 70
     };
   });
@@ -398,7 +398,7 @@ const CreateTournament = () => {
                     value={formData.startDate}
                     onChange={handleChange}
                     className="form-input pl-10"
-                    min={new Date().toISOString().slice(0, 16)}
+                    min={new Date(Date.now() - 5 * 60000).toISOString().slice(0, 16)}
                   />
                 </div>
               </div>
