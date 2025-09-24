@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { tournamentAPI } from '../../config/api';
 import { Calendar, Trophy, ArrowLeft, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { validators } from '../../utils/validation';
 
 const EditTournament = () => {
   const { id } = useParams();
@@ -57,23 +58,46 @@ const EditTournament = () => {
   const validateForm = () => {
     const errors = [];
 
+    // Basic field validation
     if (!formData.name.trim()) {
       errors.push('Tournament name is required');
+    } else if (!validators.tournamentName(formData.name)) {
+      errors.push('Tournament name must be 3-100 characters and contain no HTML tags');
     }
+
     if (!formData.startDate) {
       errors.push('Start date is required');
     }
+
     if (!formData.endDate) {
       errors.push('End date is required');
     }
 
-    // Date validation
+    // Comprehensive date validation for updates
     if (formData.startDate && formData.endDate) {
-      const startDate = new Date(formData.startDate);
-      const endDate = new Date(formData.endDate);
-
-      if (endDate <= startDate) {
+      // Check if end date is after start date
+      if (!validators.dateAfter(formData.endDate, formData.startDate)) {
         errors.push('End date must be after start date');
+      }
+
+      // Check minimum duration (30 minutes)
+      if (!validators.minimumDuration(formData.startDate, formData.endDate, 30)) {
+        errors.push('Tournament must be at least 30 minutes long');
+      }
+
+      // Check maximum duration (7 days)
+      if (!validators.maximumDuration(formData.startDate, formData.endDate, 7)) {
+        errors.push('Tournament cannot be longer than 7 days');
+      }
+
+      // For updates, be more flexible with past dates - only check if it's not too far in the past
+      const now = new Date();
+      const startDate = new Date(formData.startDate);
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      // Allow some flexibility for ongoing tournaments but prevent setting dates too far in the past
+      if (startDate < oneHourAgo && tournament && now < new Date(tournament.startDate)) {
+        errors.push('Start date cannot be more than 1 hour in the past');
       }
     }
 

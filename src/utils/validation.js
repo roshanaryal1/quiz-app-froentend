@@ -32,6 +32,50 @@ export const validators = {
   percentage: (value) => {
     const num = parseInt(value, 10);
     return !isNaN(num) && num >= 0 && num <= 100;
+  },
+
+  // Date validation utilities
+  futureDate: (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const now = new Date();
+    return date > now;
+  },
+
+  futureOrPresentDate: (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const now = new Date();
+    return date >= now;
+  },
+
+  dateAfter: (laterDateString, earlierDateString) => {
+    if (!laterDateString || !earlierDateString) return false;
+    const laterDate = new Date(laterDateString);
+    const earlierDate = new Date(earlierDateString);
+    return laterDate > earlierDate;
+  },
+
+  minimumDuration: (startDateString, endDateString, minimumMinutes = 30) => {
+    if (!startDateString || !endDateString) return false;
+    const startDate = new Date(startDateString);
+    const endDate = new Date(endDateString);
+    const durationInMinutes = (endDate - startDate) / (1000 * 60);
+    return durationInMinutes >= minimumMinutes;
+  },
+
+  maximumDuration: (startDateString, endDateString, maximumDays = 7) => {
+    if (!startDateString || !endDateString) return false;
+    const startDate = new Date(startDateString);
+    const endDate = new Date(endDateString);
+    const durationInDays = (endDate - startDate) / (1000 * 60 * 60 * 24);
+    return durationInDays <= maximumDays;
+  },
+
+  validDateRange: (startDateString, endDateString) => {
+    return validators.dateAfter(endDateString, startDateString) &&
+           validators.minimumDuration(startDateString, endDateString, 30) &&
+           validators.maximumDuration(startDateString, endDateString, 7);
   }
 };
 

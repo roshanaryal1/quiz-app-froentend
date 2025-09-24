@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { tournamentAPI, testAPI } from '../../config/api';
 import { Calendar, Trophy, Tag, Target, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { validators } from '../../utils/validation';
 
 const CreateTournament = () => {
   const navigate = useNavigate();
@@ -12,17 +13,23 @@ const CreateTournament = () => {
   const [success, setSuccess] = useState('');
   const [availableCategories, setAvailableCategories] = useState([]);
   
-  const [formData, setFormData] = useState({
-    name: '',
-    category: '',
-    difficulty: 'medium',
-    startDate: '',
-    endDate: '',
-    minimumPassingScore: 70
+  const [formData, setFormData] = useState(() => {
+    const now = new Date();
+    const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+    const twoHoursFromNow = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    
+    return {
+      name: '',
+      category: '',
+      difficulty: 'medium',
+      startDate: oneHourFromNow.toISOString().slice(0, 16),
+      endDate: twoHoursFromNow.toISOString().slice(0, 16),
+      minimumPassingScore: 70
+    };
   });
 
   // Add error boundary to catch React errors
-  const [hasError, setHasError] = useState(false);
+  const [hasError] = useState(false);
 
   // Fetch categories when component mounts - FIXED API CALL
   useEffect(() => {
@@ -87,44 +94,57 @@ const CreateTournament = () => {
     try {
       const errors = [];
 
+      // Basic field validation
       if (!formData.name.trim()) {
         errors.push('Tournament name is required');
+      } else if (!validators.tournamentName(formData.name)) {
+        errors.push('Tournament name must be 3-100 characters and contain no HTML tags');
       }
+
       if (!formData.category) {
         errors.push('Category is required');
       }
+
       if (!formData.startDate) {
         errors.push('Start date is required');
       }
+
       if (!formData.endDate) {
         errors.push('End date is required');
       }
 
-      // Date validation
+      // Comprehensive date validation
       if (formData.startDate && formData.endDate) {
-        const startDate = new Date(formData.startDate);
-        const endDate = new Date(formData.endDate);
-        const now = new Date();
-        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
-
-
-        // Allow start date to be up to 5 minutes in the past (for timezone issues)
-        if (startDate < new Date(now.getTime() - 5 * 60 * 1000)) {
-          errors.push('Start date cannot be more than 5 minutes in the past');
+        // Check if start date is in the future or present
+        if (!validators.futureOrPresentDate(formData.startDate)) {
+          errors.push('Start date cannot be in the past');
         }
-        if (endDate <= startDate) {
+
+        // Check if end date is after start date
+        if (!validators.dateAfter(formData.endDate, formData.startDate)) {
           errors.push('End date must be after start date');
         }
-        // Ensure tournament duration is at least 30 minutes
-        const duration = endDate.getTime() - startDate.getTime();
-        if (duration < 30 * 60 * 1000) { // 30 minutes
+
+        // Check minimum duration (30 minutes)
+        if (!validators.minimumDuration(formData.startDate, formData.endDate, 30)) {
           errors.push('Tournament must be at least 30 minutes long');
+        }
+
+        // Check maximum duration (7 days)
+        if (!validators.maximumDuration(formData.startDate, formData.endDate, 7)) {
+          errors.push('Tournament cannot be longer than 7 days');
+        }
+
+        // Additional validation: start date should not be more than 1 year in the future
+        const oneYearFromNow = new Date();
+        oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+        if (new Date(formData.startDate) > oneYearFromNow) {
+          errors.push('Start date cannot be more than 1 year in the future');
         }
       }
 
       // Score validation
-      const score = parseInt(formData.minimumPassingScore);
-      if (isNaN(score) || score < 0 || score > 100) {
+      if (!validators.percentage(formData.minimumPassingScore)) {
         errors.push('Minimum passing score must be between 0 and 100');
       }
 

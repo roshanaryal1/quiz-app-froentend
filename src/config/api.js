@@ -240,8 +240,8 @@ export const tournamentAPI = {
   getUpcoming: () => api.get('/tournaments/player/upcoming'),
   getPast: () => api.get('/tournaments/player/past'),
   getParticipated: () => api.get('/tournaments/player/participated'),
-  checkParticipationStatus: (tournamentId, userId) => 
-    api.get(`/tournaments/${tournamentId}/participation-status?userId=${userId}`),
+  checkParticipationStatus: (tournamentId) => 
+    api.get(`/tournaments/${tournamentId}/participation-status`),
 };
 
 // Auth API

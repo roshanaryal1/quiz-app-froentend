@@ -14,7 +14,7 @@ export const useParticipationStatus = (tournamentId) => {
   const { isAuthenticated, user } = useAuth();
 
   const checkParticipation = async () => {
-    if (!tournamentId || !isAuthenticated || !user?.id) {
+    if (!tournamentId || !isAuthenticated || !user?.id || user?.role !== 'PLAYER') {
       setHasParticipated(false);
       setLoading(false);
       return;
@@ -24,7 +24,7 @@ export const useParticipationStatus = (tournamentId) => {
       setLoading(true);
       setError(null);
       
-      const response = await tournamentAPI.checkParticipationStatus(tournamentId, user.id);
+      const response = await tournamentAPI.checkParticipationStatus(tournamentId);
       setHasParticipated(response.data.hasParticipated);
       
     } catch (error) {
@@ -39,7 +39,7 @@ export const useParticipationStatus = (tournamentId) => {
 
   useEffect(() => {
     checkParticipation();
-  }, [tournamentId, isAuthenticated, user?.id]);
+  }, [tournamentId, isAuthenticated, user?.id, user?.role]);
 
   return {
     hasParticipated,
